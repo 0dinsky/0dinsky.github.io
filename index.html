@@ -604,7 +604,7 @@
             <div class="card-title"><span class="dot"></span>Mixed Proxy (SOCKS5/HTTP)</div>
             <div class="field">
                 <label>Listen порт</label>
-                <input type="text" id="mixedPort" value="31372" placeholder="31372">
+                <input type="text" id="mixedPort" value="41592" placeholder="41592">
             </div>
             <div class="field">
                 <label>Listen адрес</label>
@@ -1351,31 +1351,45 @@ function buildDnsServer(tag, addr) {
         return { "type": "local", "tag": tag };
     }
 
-    // DoH: https://dns.google/dns-query  или  https://1.1.1.1/dns-query
-    if (addr.startsWith('https://')) {
-        const server = { "type": "https", "tag": tag, "server": addr };
-        // Извлекаем хост из URL чтобы проверить — IP или домен
+    addr = addr.trim();
+    const addrLower = addr.toLowerCase();
+
+    // DoH: https:// или http:// (апгрейдим до https)
+    if (addrLower.startsWith('https://') || addrLower.startsWith('http://')) {
+        const normalized = addr.replace(/^http:\/\//i, 'https://');
         try {
-            const host = new URL(addr).hostname;
-            if (!isIpAddress(host)) {
-                // Домен — нужен domain_resolver → используем local-dns как bootstrap
+            const u = new URL(normalized);
+            const server = {
+                "type": "https",
+                "tag": tag,
+                "server": u.hostname,
+                "server_port": u.port ? parseInt(u.port) : 443
+            };
+            if (u.pathname && u.pathname !== '/') {
+                server.path = u.pathname;
+            }
+            if (!isIpAddress(u.hostname)) {
                 server.domain_resolver = "local-dns";
             }
-        } catch(e) {}
-        return server;
+            return server;
+        } catch(e) {
+            return { "type": "https", "tag": tag, "server": addr };
+        }
     }
 
-    // DoT: tls://dns.google
-    if (addr.startsWith('tls://')) {
-        const host = addr.slice(6).split(':')[0];
-        const port = addr.includes(':') ? parseInt(addr.split(':').pop()) : 853;
+    // DoT: tls://dns.google  или  tls://1.1.1.1:853
+    if (addrLower.startsWith('tls://')) {
+        const rest = addr.slice(6);
+        const hasPort = rest.includes(':');
+        const host = hasPort ? rest.split(':')[0] : rest;
+        const port = hasPort ? parseInt(rest.split(':')[1]) : 853;
         const server = { "type": "tls", "tag": tag, "server": host, "server_port": port };
         if (!isIpAddress(host)) server.domain_resolver = "local-dns";
         return server;
     }
 
     // UDP plain: 1.1.1.1  или  dns.google  или  1.1.1.1:5353
-    const hasPort = addr.includes(':');
+    const hasPort = !addr.startsWith('[') && addr.includes(':');
     const host = hasPort ? addr.split(':')[0] : addr;
     const port = hasPort ? parseInt(addr.split(':')[1]) : 53;
     const server = { "type": "udp", "tag": tag, "server": host, "server_port": port };
