@@ -604,7 +604,7 @@
             <div class="card-title"><span class="dot"></span>Mixed Proxy (SOCKS5/HTTP)</div>
             <div class="field">
                 <label>Listen порт</label>
-                <input type="text" id="mixedPort" value="1375" placeholder="1375">
+                <input type="text" id="mixedPort" value="31372" placeholder="31372">
             </div>
             <div class="field">
                 <label>Listen адрес</label>
@@ -1338,21 +1338,49 @@ function getDnsAddr(which) {
     return el ? el.value.trim() || null : null;
 }
 
+function isIpAddress(str) {
+    // IPv4
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(str)) return true;
+    // IPv6 (basic check)
+    if (/^[0-9a-fA-F:]+$/.test(str) && str.includes(':')) return true;
+    return false;
+}
+
 function buildDnsServer(tag, addr) {
     if (!addr) {
         return { "type": "local", "tag": tag };
     }
-    // Detect DoH vs plain
+
+    // DoH: https://dns.google/dns-query  или  https://1.1.1.1/dns-query
     if (addr.startsWith('https://')) {
-        return { "type": "https", "tag": tag, "server": addr };
+        const server = { "type": "https", "tag": tag, "server": addr };
+        // Извлекаем хост из URL чтобы проверить — IP или домен
+        try {
+            const host = new URL(addr).hostname;
+            if (!isIpAddress(host)) {
+                // Домен — нужен domain_resolver → используем local-dns как bootstrap
+                server.domain_resolver = "local-dns";
+            }
+        } catch(e) {}
+        return server;
     }
+
+    // DoT: tls://dns.google
+    if (addr.startsWith('tls://')) {
+        const host = addr.slice(6).split(':')[0];
+        const port = addr.includes(':') ? parseInt(addr.split(':').pop()) : 853;
+        const server = { "type": "tls", "tag": tag, "server": host, "server_port": port };
+        if (!isIpAddress(host)) server.domain_resolver = "local-dns";
+        return server;
+    }
+
+    // UDP plain: 1.1.1.1  или  dns.google  или  1.1.1.1:5353
     const hasPort = addr.includes(':');
-    return {
-        "type": "udp",
-        "tag": tag,
-        "server": hasPort ? addr.split(':')[0] : addr,
-        "server_port": hasPort ? parseInt(addr.split(':')[1]) : 53
-    };
+    const host = hasPort ? addr.split(':')[0] : addr;
+    const port = hasPort ? parseInt(addr.split(':')[1]) : 53;
+    const server = { "type": "udp", "tag": tag, "server": host, "server_port": port };
+    if (!isIpAddress(host)) server.domain_resolver = "local-dns";
+    return server;
 }
 
 // ─── CONFIG BUILDER ───────────────────────────────────────────────────
@@ -1383,12 +1411,13 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 
     const dnsServers = [];
 
+    // local-dns ВСЕГДА первым — используется как bootstrap domain_resolver
+    // для DNS серверов с доменными адресами (DoH, DoT, UDP с hostname)
+    dnsServers.push({ "type": "local", "tag": "local-dns" });
+
     if (proxyDnsAddr) {
         dnsServers.push(buildDnsServer('proxy-dns', proxyDnsAddr));
     }
-
-    // local always present
-    dnsServers.push({ "type": "local", "tag": "local-dns" });
 
     if (directDnsAddr) {
         dnsServers.push(buildDnsServer('direct-dns', directDnsAddr));
@@ -1557,3 +1586,4 @@ function downloadResult() {
 </script>
 </body>
 </html>
+
