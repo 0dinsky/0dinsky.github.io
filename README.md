@@ -1,1 +1,0 @@
-# 0dinsky.github.io
