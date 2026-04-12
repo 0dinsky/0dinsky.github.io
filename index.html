@@ -111,6 +111,7 @@
         textarea:focus { border-color: var(--accent); }
         textarea#inputData { height: 90px; }
         textarea#bypassDomains { height: 80px; }
+        textarea#proxyDomains  { height: 80px; }
 
         label {
             display: block;
@@ -753,9 +754,16 @@
 
         <!-- BYPASS DOMAINS -->
         <div class="card">
-            <div class="card-title"><span class="dot green"></span>Домены в обход прокси <span class="badge">domain_prefix</span></div>
+            <div class="card-title"><span class="dot green"></span>Домены в обход прокси</div>
             <textarea id="bypassDomains" placeholder="example.com&#10;mybank.ru&#10;work-vpn.net&#10;local.service"></textarea>
             <div class="hint">Каждый домен с новой строки. Все субдомены включаются автоматически.</div>
+        </div>
+
+        <!-- PROXY DOMAINS -->
+        <div class="card">
+            <div class="card-title"><span class="dot"></span>Домены всегда через прокси</div>
+            <textarea id="proxyDomains" placeholder="google.com&#10;youtube.com&#10;twitter.com&#10;openai.com"></textarea>
+            <div class="hint">Каждый домен с новой строки. Добавляются в route.rules до остальных правил.</div>
         </div>
 
         <!-- DNS SETTINGS -->
@@ -856,7 +864,7 @@
             <div class="card-title"><span class="dot"></span>Mixed Proxy (SOCKS5/HTTP)</div>
             <div class="field">
                 <label>Listen порт</label>
-                <input type="text" id="mixedPort" value="2085" placeholder="2085">
+                <input type="text" id="mixedPort" value="41592" placeholder="41592">
             </div>
             <div class="field">
                 <label>Listen адрес</label>
@@ -1219,19 +1227,13 @@ function renderProfilePanel() {
 
     // Сортировка по пингу
     if (sortByPing) {
-        filtered.sort((a, b) => {
-            const pa = a._pingMs ?? Infinity;
-            const pb = b._pingMs ?? Infinity;
-            // null (_pingMs undefined = не пинговали) — в конец
-            if (a._pingMs === undefined && b._pingMs === undefined) return 0;
-            if (a._pingMs === undefined) return 1;
-            if (b._pingMs === undefined) return -1;
-            // timeout (null) — в конец после непинговавших
-            if (pa === Infinity && pb === Infinity) return 0;
-            if (pa === Infinity) return 1;
-            if (pb === Infinity) return -1;
-            return pa - pb;
-        });
+        // Приоритет: реальный пинг (мс) < timeout (null) < не пинговался (undefined)
+        const pingVal = p => {
+            if (p._pingMs === undefined) return 999999; // не пинговался — в самый конец
+            if (p._pingMs === null) return 99999;       // timeout — перед непингованными
+            return p._pingMs;                           // реальное значение
+        };
+        filtered.sort((a, b) => pingVal(a) - pingVal(b));
     }
 
     const shown = filtered.slice(0, VISIBLE_LIMIT);
@@ -2299,10 +2301,16 @@ function generateConfig(links) {
 
 function generateConfigFromParsed(outboundsList, proxyTags) {
 
-    // Bypass domains
+    // Bypass domains (direct)
     const rawDomains = document.getElementById('bypassDomains').value.trim();
     const bypassDomains = rawDomains
         ? rawDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean)
+        : [];
+
+    // Proxy-forced domains (always through proxy)
+    const rawProxyDomains = document.getElementById('proxyDomains').value.trim();
+    const proxyForceDomains = rawProxyDomains
+        ? rawProxyDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean)
         : [];
 
     // DNS
@@ -2327,6 +2335,14 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 
     // DNS rules
     const dnsRules = [];
+    // Proxy-forced domains → резолвим через proxy-dns (или local если proxy-dns нет)
+    if (proxyForceDomains.length > 0) {
+        dnsRules.push({
+            "domain_suffix": proxyForceDomains,
+            "server": proxyDnsAddr ? "proxy-dns" : "local-dns",
+            "action": "route"
+        });
+    }
     if (bypassDomains.length > 0) {
         dnsRules.push({
             "domain_suffix": bypassDomains,
@@ -2362,13 +2378,23 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "default": proxyTags[0]
     };
 
-    // Route rules
+    // Route rules — proxy-force идёт ПЕРВЫМ (до resolve и bypass)
     const routeRules = [
         { "action": "sniff", "sniffer": ["http","tls","dns","quic"], "timeout": "300ms" },
-        { "protocol": "dns", "action": "hijack-dns" },
-        { "action": "resolve" },
-        { "ip_is_private": true, "action": "route", "outbound": "direct" }
+        { "protocol": "dns", "action": "hijack-dns" }
     ];
+
+    // Proxy-forced domains — до resolve, чтобы не попали в bypass
+    if (proxyForceDomains.length > 0) {
+        routeRules.push({
+            "domain_suffix": proxyForceDomains,
+            "action": "route",
+            "outbound": "proxy-select"
+        });
+    }
+
+    routeRules.push({ "action": "resolve" });
+    routeRules.push({ "ip_is_private": true, "action": "route", "outbound": "direct" });
 
     if (bypassDomains.length > 0) {
         routeRules.push({
