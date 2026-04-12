@@ -708,6 +708,10 @@
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM4.5 7.5a.5.5 0 0 0 0 1h5.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H4.5z"/></svg>
                 Загрузить профили
             </button>
+            <label class="btn btn-secondary" style="padding:8px 18px;font-size:0.8rem;cursor:pointer" title="Загрузить из файла (.txt, .json, .conf)">
+                📂 Файл
+                <input type="file" id="fileInput" accept=".txt,.json,.conf,.list" style="display:none" onchange="loadFromFile(this)">
+            </label>
             <label class="toggle-row" style="margin:0;cursor:pointer" title="Если включено — полные дубли отбрасываются. Если выключено — добавляются с суффиксом (1), (2)...">
                 <label class="toggle"><input type="checkbox" id="dedupCheck" checked><span class="toggle-slider"></span></label>
                 <span class="toggle-label" style="font-size:0.78rem">Исключать дубликаты</span>
@@ -864,7 +868,7 @@
             <div class="card-title"><span class="dot"></span>Mixed Proxy (SOCKS5/HTTP)</div>
             <div class="field">
                 <label>Listen порт</label>
-                <input type="text" id="mixedPort" value="41592" placeholder="41592">
+                <input type="text" id="mixedPort" value="2085" placeholder="2085">
             </div>
             <div class="field">
                 <label>Listen адрес</label>
@@ -1032,10 +1036,10 @@ async function loadProfiles() {
             const size = res.headers.get('content-length');
             fetchSt.textContent = `⏳ Получение данных${size ? ` (${Math.round(size/1024)}кб)` : ''}...`;
             const text = await res.text();
-            let raw = text;
-            fetchSt.textContent = '⏳ Декодирование base64...';
-            try { raw = atob(text.trim()); } catch(e) {}
-            links = extractLinks(raw);
+            fetchSt.textContent = '⏳ Декодирование...';
+            const result = decodeSubscription(text);
+            links = result.links;
+            if (result.doubleEncoded) fetchSt.textContent = '⏳ Обнаружено двойное base64, декодировано...';
         } catch(e) {
             setLoadIdle(loadBtn, fetchSt, '✗ Ошибка загрузки');
             showError('Ошибка CORS или доступа. Вставьте Base64 напрямую.');
@@ -1043,9 +1047,9 @@ async function loadProfiles() {
         }
     } else if (!input.includes('://') && input.length > 50) {
         fetchSt.textContent = '⏳ Декодирование base64...';
-        let raw = input;
-        try { raw = atob(input); } catch(e) {}
-        links = extractLinks(raw);
+        const result = decodeSubscription(input);
+        links = result.links;
+        if (result.doubleEncoded) fetchSt.textContent = '⏳ Обнаружено двойное base64, декодировано...';
     } else {
         fetchSt.textContent = '⏳ Разбор ссылок...';
         links = extractLinks(input);
@@ -1151,6 +1155,102 @@ function extractLinks(text) {
     return text.split(/\s+/).filter(l => l.includes('://'));
 }
 
+// Декодирует подписку с поддержкой двойного base64
+// Некоторые провайдеры кодируют уже закодированный base64 ещё раз
+function decodeSubscription(raw) {
+    // Сначала пробуем как plain text (уже декодированный)
+    let links = extractLinks(raw);
+    if (links.length > 0) return { links, decoded: raw };
+
+    // Пробуем base64 первого уровня
+    try {
+        const d1 = atob(raw.trim().replace(/\s/g, ''));
+        links = extractLinks(d1);
+        if (links.length > 0) return { links, decoded: d1 };
+
+        // Пробуем base64 второго уровня (двойное кодирование)
+        try {
+            const d2 = atob(d1.trim().replace(/\s/g, ''));
+            links = extractLinks(d2);
+            if (links.length > 0) return { links, decoded: d2, doubleEncoded: true };
+        } catch(e) {}
+
+        // Первый уровень декодировался, но ссылок нет — вернём всё равно
+        return { links: extractLinks(d1), decoded: d1 };
+    } catch(e) {}
+
+    // base64 не удался — возвращаем plain
+    return { links: extractLinks(raw), decoded: raw };
+}
+async function loadFromFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = ''; // сбрасываем чтобы можно было выбрать тот же файл снова
+
+    const text = await file.text();
+
+    // Если JSON — вставляем в поле импорта или сразу парсим
+    if (file.name.endsWith('.json') || text.trim().startsWith('{') || text.trim().startsWith('[')) {
+        document.getElementById('inputData').value = '';
+        const fetchSt = document.getElementById('fetchStatus');
+        try {
+            const outbounds = extractOutboundsFromConfig(text);
+            if (outbounds.length > 0) {
+                // JSON конфиг sing-box — сразу загружаем как профили
+                fetchSt.style.display = 'block';
+                fetchSt.style.color = 'var(--accent)';
+                fetchSt.textContent = `⏳ Загружаем ${outbounds.length} outbound'ов из JSON...`;
+                await new Promise(r => setTimeout(r, 0));
+                const parsed = deduplicateAndTag(outbounds);
+                allParsedProfiles = parsed;
+                chainOrder = [];
+                setLoadIdle(document.getElementById('loadBtn'), fetchSt,
+                    `✓ Из JSON: ${parsed.length} профилей`);
+                renderProfilePanel();
+                return;
+            }
+        } catch(e) {}
+        // Не распознали — вставляем в textarea для ручного просмотра
+        document.getElementById('inputData').value = text;
+        return;
+    }
+
+    // Текстовый файл — вставляем в поле и запускаем загрузку
+    // Пробуем двойное base64 если нет ссылок напрямую
+    const { links: fileLinks, doubleEncoded } = decodeSubscription(text);
+    if (fileLinks.length > 0) {
+        document.getElementById('inputData').value = fileLinks.join('\n');
+    } else {
+        document.getElementById('inputData').value = text;
+    }
+    await loadProfiles();
+}
+
+// Дедупликация и присвоение тегов для уже-распарсенных outbound'ов
+function deduplicateAndTag(outbounds) {
+    const seenTags     = new Set();
+    const seenFullKeys = new Set();
+    const dedupEnabled = document.getElementById('dedupCheck').checked;
+    const result = [];
+
+    for (const ob of outbounds) {
+        const fullKey = JSON.stringify({
+            type: ob.type, server: ob.server, server_port: ob.server_port,
+            uuid: ob.uuid, password: ob.password, method: ob.method, private_key: ob.private_key
+        });
+        if (seenFullKeys.has(fullKey) && dedupEnabled) continue;
+        seenFullKeys.add(fullKey);
+
+        const baseTag = ob.tag || ob.type || 'proxy';
+        let tag = baseTag, n = 1;
+        while (seenTags.has(tag)) tag = `${baseTag} (${n++})`;
+        ob.tag = tag;
+        seenTags.add(tag);
+        result.push({ outbound: ob, enabled: true });
+    }
+    return result;
+}
+
 // sn://protocol?BASE64encodedJSON — handled by parseSNLinkAsync above
 
 async function parseSNLinkAsync(urlStr) {
@@ -1253,6 +1353,7 @@ function renderProfilePanel() {
         item.className = 'profile-item' +
             (p.enabled ? '' : ' excluded') +
             (inChain ? ' in-chain' : '');
+        item.dataset.tag = ob.tag || '';
         if (isDupe) item.style.borderColor = 'var(--accent3)';
 
         item.innerHTML = `
@@ -1456,7 +1557,13 @@ function pingServerToProfile(p) {
 
         ws.onopen  = finish;
         ws.onerror = finish;
-        setTimeout(() => { p._pingMs = null; settled = true; try { ws.close(); } catch(e) {} resolve(); }, 5000);
+        setTimeout(() => {
+            if (settled) return; // уже получили ответ — не затираем результат
+            settled = true;
+            p._pingMs = null;
+            try { ws.close(); } catch(e) {}
+            resolve();
+        }, 5000);
     });
 }
 
@@ -2076,7 +2183,13 @@ function openShareModal() {
         <div style="font-size:0.72rem;color:var(--text-muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Декодировать JSON конфиг</div>
         <div style="display:flex;gap:8px">
             <textarea id="importJsonInput" style="height:60px;font-size:11px;flex:1" placeholder='Вставьте полный конфиг {"outbounds":[...]} или JSON outbound'></textarea>
-            <button class="share-copy-btn" style="align-self:stretch;padding:6px 14px;font-size:12px" onclick="importFromJson()">→</button>
+            <div style="display:flex;flex-direction:column;gap:6px">
+                <button class="share-copy-btn" style="padding:6px 14px;font-size:12px;white-space:nowrap" onclick="importFromJson()">→ из JSON</button>
+                <label class="share-copy-btn" style="padding:6px 10px;font-size:12px;cursor:pointer;white-space:nowrap" title="Загрузить .json или .txt файл">
+                    📂 Файл
+                    <input type="file" accept=".json,.txt,.conf" style="display:none" onchange="importFromFileInModal(this)">
+                </label>
+            </div>
         </div>
         <div id="importStatus" style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;font-family:monospace"></div>
         <div style="height:1px;background:var(--border);margin:12px 0"></div>
@@ -2117,7 +2230,6 @@ function importFromJson() {
         const profiles = outbounds.map(o => ({ outbound: o, enabled: true }));
         status.textContent = `✓ Найдено ${profiles.length} профилей`;
         const listEl = document.getElementById('shareList');
-        // Удаляем пустую подсказку и старые share-item'ы
         const hint = document.getElementById('shareEmptyHint');
         if (hint) hint.remove();
         listEl.querySelectorAll('.share-item, .btn.btn-secondary').forEach(el => el.remove());
@@ -2125,6 +2237,35 @@ function importFromJson() {
     } catch(e) {
         status.textContent = '✗ Ошибка: ' + e.message;
     }
+}
+
+async function importFromFileInModal(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    const status = document.getElementById('importStatus');
+    status.textContent = '⏳ Читаем файл...';
+    const text = await file.text();
+
+    // JSON конфиг
+    if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+        document.getElementById('importJsonInput').value = text;
+        importFromJson();
+        return;
+    }
+
+    // Текстовый файл со ссылками
+    const links = extractLinks(text);
+    if (links.length === 0) { status.textContent = '⚠ Ссылки не найдены в файле'; return; }
+    const outbounds = links.map(l => parseLink(l)).filter(Boolean);
+    if (outbounds.length === 0) { status.textContent = '⚠ Не удалось распознать протоколы'; return; }
+    const profiles = outbounds.map(o => ({ outbound: o, enabled: true }));
+    status.textContent = `✓ Из файла: ${profiles.length} профилей`;
+    const listEl = document.getElementById('shareList');
+    const hint = document.getElementById('shareEmptyHint');
+    if (hint) hint.remove();
+    listEl.querySelectorAll('.share-item, .btn.btn-secondary').forEach(el => el.remove());
+    renderShareList(profiles, listEl);
 }
 
 function renderShareList(profiles, listEl) {
@@ -2193,10 +2334,26 @@ function pingServer(host, port, el) {
     el.textContent = '…';
     el.style.color = 'var(--text-muted)';
     el.style.borderColor = 'var(--border)';
+    // Ищем тег через data-tag атрибут (надёжнее textContent)
+    const tag = el.closest('.profile-item')?.dataset?.tag || null;
 
     const t0 = performance.now();
     const ws = new WebSocket(`wss://${host}:${port}`);
     let done = false;
+
+    const saveResult = (result) => {
+        // Ищем профиль по тегу (надёжнее чем server:port при дублях)
+        if (tag) {
+            const p = allParsedProfiles.find(p => p.outbound.tag === tag);
+            if (p) { p._pingMs = result; return; }
+        }
+        // Fallback: по server + port (числовое сравнение)
+        const p = allParsedProfiles.find(p =>
+            p.outbound.server === host &&
+            Number(p.outbound.server_port || 443) === Number(port)
+        );
+        if (p) p._pingMs = result;
+    };
 
     const finish = () => {
         if (done) return;
@@ -2205,14 +2362,18 @@ function pingServer(host, port, el) {
         const ms = Math.round(performance.now() - t0);
         const result = ms > 4950 ? null : ms;
         applyPingResult(el, result);
-        // Сохраняем в профиль если найдём по server:port
-        const p = allParsedProfiles.find(p => p.outbound.server === host && (p.outbound.server_port||443) === port);
-        if (p) p._pingMs = result;
+        saveResult(result);
     };
 
     ws.onopen  = finish;
     ws.onerror = finish;
-    setTimeout(() => { applyPingResult(el, null); done = true; try { ws.close(); } catch(e) {} }, 5000);
+    setTimeout(() => {
+        if (done) return;
+        done = true;
+        applyPingResult(el, null);
+        saveResult(null);
+        try { ws.close(); } catch(e) {}
+    }, 5000);
 }
 
 function closeShareModal() {
@@ -2410,7 +2571,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         : { "server": "local-dns", "rewrite_ttl": 60 };
 
     const mixedListen = state.mixedListen;
-    const mixedPort   = parseInt(document.getElementById('mixedPort').value) || 1080;
+    const mixedPort   = parseInt(document.getElementById('mixedPort').value) || 2085;
 
     const config = {
         "log": { "level": "warn", "timestamp": true },
