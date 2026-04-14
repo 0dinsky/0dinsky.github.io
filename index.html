@@ -784,10 +784,10 @@
                         </div>
                     </div>
                     <div class="field" id="directDnsCustom" style="display:none">
-                        <input type="text" id="directDnsAddr" placeholder="223.5.5.5" value="">
+                        <input type="text" id="directDnsAddr" placeholder="223.5.5.5 или https://223.5.5.5/dns-query" value="" oninput="updateDirectDnsStrategyVisibility()">
                     </div>
-                    <div class="field">
-                        <label>Стратегия IP</label>
+                    <div class="field" id="directDnsStrategyRow" style="display:none">
+                        <label>Стратегия IP (резолв домена сервера)</label>
                         <div class="select-row" id="directDnsStrategy" style="flex-wrap:wrap">
                             <button class="seg-btn active" data-v="prefer_ipv4" onclick="setStrategy('direct',this)">prefer v4</button>
                             <button class="seg-btn" data-v="prefer_ipv6" onclick="setStrategy('direct',this)">prefer v6</button>
@@ -801,15 +801,15 @@
                     <div class="field">
                         <label>DNS для прокси трафика</label>
                         <div class="select-row" id="proxyDnsType">
-                            <button class="seg-btn active" data-v="local" onclick="setDnsType('proxy',this)">local</button>
-                            <button class="seg-btn" data-v="custom" onclick="setDnsType('proxy',this)">custom</button>
+                            <button class="seg-btn" data-v="local" onclick="setDnsType('proxy',this)">local</button>
+                            <button class="seg-btn active" data-v="custom" onclick="setDnsType('proxy',this)">custom</button>
                         </div>
                     </div>
-                    <div class="field" id="proxyDnsCustom" style="display:none">
-                        <input type="text" id="proxyDnsAddr" placeholder="1.1.1.1" value="">
+                    <div class="field" id="proxyDnsCustom">
+                        <input type="text" id="proxyDnsAddr" placeholder="https://dns.google/dns-query" value="https://dns.google/dns-query" oninput="updateProxyDnsStrategyVisibility()">
                     </div>
-                    <div class="field">
-                        <label>Стратегия IP</label>
+                    <div class="field" id="proxyDnsStrategyRow" style="display:none">
+                        <label>Стратегия IP (резолв домена сервера)</label>
                         <div class="select-row" id="proxyDnsStrategy" style="flex-wrap:wrap">
                             <button class="seg-btn" data-v="prefer_ipv4" onclick="setStrategy('proxy',this)">prefer v4</button>
                             <button class="seg-btn active" data-v="prefer_ipv6" onclick="setStrategy('proxy',this)">prefer v6</button>
@@ -826,6 +826,13 @@
                 <div class="toggle-row">
                     <label class="toggle"><input type="checkbox" id="dnsOptimistic" checked><span class="toggle-slider"></span></label>
                     <span class="toggle-label">Сразу вернуть просроченный кэш, обновить в фоне</span>
+                </div>
+            </div>
+            <div class="field">
+                <label>Fake IP <span class="badge" style="background:rgba(210,168,255,0.12);color:var(--accent4)">рекомендуется</span></label>
+                <div class="toggle-row">
+                    <label class="toggle"><input type="checkbox" id="fakeipEnabled" checked><span class="toggle-slider"></span></label>
+                    <span class="toggle-label">Fake IP для TUN — устраняет DNS утечки провайдеру</span>
                 </div>
             </div>
         </div>
@@ -927,13 +934,13 @@
 </div>
 
 <script>
-// ─── STATE ───────────────────────────────────────────────────────────
+	
 const state = {
     directDnsType: 'local',
-    directDnsAddr: '223.5.5.5',
+    directDnsAddr: 'local',
     directDnsStrategy: 'prefer_ipv4',
-    proxyDnsType: 'local',
-    proxyDnsAddr: '1.1.1.1',
+    proxyDnsType: 'custom',
+    proxyDnsAddr: 'https://dns.google/dns-query',
     proxyDnsStrategy: 'prefer_ipv6',
     stack: 'gvisor',
     mtu: '1400',
@@ -947,13 +954,41 @@ const stackHints = {
     mixed: 'mixed — UDP через system, TCP через gVisor',
 };
 
+// Инициализация видимости строк стратегии при загрузке
+document.addEventListener('DOMContentLoaded', () => {
+    updateDirectDnsStrategyVisibility();
+    updateProxyDnsStrategyVisibility();
+});
+
+function updateDirectDnsStrategyVisibility() {
+    const isCustom = state.directDnsType === 'custom';
+    const addr = (document.getElementById('directDnsAddr').value || '').trim();
+    const isDomain = isCustom && addr.length > 0 && (typeof needsDomainResolver === 'function'
+        ? needsDomainResolver(addr)
+        : !/^[\d.:[\]]+$/.test(addr.replace(/^https?:\/\//,'').replace(/^tls:\/\//,'').split('/')[0].split(':')[0]));
+    document.getElementById('directDnsStrategyRow').style.display = isDomain ? 'block' : 'none';
+}
+
+function updateProxyDnsStrategyVisibility() {
+    const isCustom = state.proxyDnsType === 'custom';
+    const addr = (document.getElementById('proxyDnsAddr').value || '').trim();
+    const isDomain = isCustom && addr.length > 0 && (typeof needsDomainResolver === 'function'
+        ? needsDomainResolver(addr)
+        : !/^[\d.:[\]]+$/.test(addr.replace(/^https?:\/\//,'').replace(/^tls:\/\//,'').split('/')[0].split(':')[0]));
+    document.getElementById('proxyDnsStrategyRow').style.display = isDomain ? 'block' : 'none';
+}
+
 function setDnsType(which, btn) {
     const container = document.getElementById(which + 'DnsType');
     container.querySelectorAll('.seg-btn').forEach(b => { b.classList.remove('active','active-green'); });
     btn.classList.add(which === 'direct' ? 'active-green' : 'active');
     state[which + 'DnsType'] = btn.dataset.v;
     document.getElementById(which + 'DnsCustom').style.display = btn.dataset.v === 'custom' ? 'block' : 'none';
+    if (which === 'direct') updateDirectDnsStrategyVisibility();
+    if (which === 'proxy')  updateProxyDnsStrategyVisibility();
 }
+
+
 
 function setStrategy(which, btn) {
     document.getElementById(which + 'DnsStrategy').querySelectorAll('.seg-btn').forEach(b => { b.classList.remove('active'); });
@@ -1669,8 +1704,8 @@ function showError(msg) {
 // ─── SHARED BUILD HELPERS ─────────────────────────────────────────────
 function getResolver() {
     return getDnsAddr('proxy')
-        ? { "server": "proxy-dns", "rewrite_ttl": 60 }
-        : { "server": "local-dns",     "rewrite_ttl": 60 };
+        ? { "server": "dns-remote", "rewrite_ttl": 60 }
+        : { "server": "dns-local",  "rewrite_ttl": 60 };
 }
 
 function buildTls(params, hostname) {
@@ -2397,56 +2432,7 @@ function isIpAddress(str) {
     return false;
 }
 
-function buildDnsServer(tag, addr) {
-    if (!addr) {
-        return { "type": "local", "tag": tag };
-    }
 
-    addr = addr.trim();
-    const addrLower = addr.toLowerCase();
-
-    // DoH: https:// или http:// (апгрейдим до https)
-    if (addrLower.startsWith('https://') || addrLower.startsWith('http://')) {
-        const normalized = addr.replace(/^http:\/\//i, 'https://');
-        try {
-            const u = new URL(normalized);
-            const server = {
-                "type": "https",
-                "tag": tag,
-                "server": u.hostname,
-                "server_port": u.port ? parseInt(u.port) : 443
-            };
-            if (u.pathname && u.pathname !== '/') {
-                server.path = u.pathname;
-            }
-            if (!isIpAddress(u.hostname)) {
-                server.domain_resolver = "local-dns";
-            }
-            return server;
-        } catch(e) {
-            return { "type": "https", "tag": tag, "server": addr };
-        }
-    }
-
-    // DoT: tls://dns.google  или  tls://1.1.1.1:853
-    if (addrLower.startsWith('tls://')) {
-        const rest = addr.slice(6);
-        const hasPort = rest.includes(':');
-        const host = hasPort ? rest.split(':')[0] : rest;
-        const port = hasPort ? parseInt(rest.split(':')[1]) : 853;
-        const server = { "type": "tls", "tag": tag, "server": host, "server_port": port };
-        if (!isIpAddress(host)) server.domain_resolver = "local-dns";
-        return server;
-    }
-
-    // UDP plain: 1.1.1.1  или  dns.google  или  1.1.1.1:5353
-    const hasPort = !addr.startsWith('[') && addr.includes(':');
-    const host = hasPort ? addr.split(':')[0] : addr;
-    const port = hasPort ? parseInt(addr.split(':')[1]) : 53;
-    const server = { "type": "udp", "tag": tag, "server": host, "server_port": port };
-    if (!isIpAddress(host)) server.domain_resolver = "local-dns";
-    return server;
-}
 
 // ─── CONFIG BUILDER ───────────────────────────────────────────────────
 function generateConfig(links) {
@@ -2474,57 +2460,120 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         ? rawProxyDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean)
         : [];
 
-    // DNS
-    const directDnsAddr = getDnsAddr('direct');
-    const proxyDnsAddr  = getDnsAddr('proxy');
+    // DNS settings
+    const directDnsAddr  = getDnsAddr('direct');
+    const proxyDnsAddr   = getDnsAddr('proxy');
     const directStrategy = state.directDnsStrategy;
     const proxyStrategy  = state.proxyDnsStrategy;
+    const useFakeip      = document.getElementById('fakeipEnabled').checked;
+    const useOptimistic  = document.getElementById('dnsOptimistic').checked;
 
+    // ── Собираем адреса прокси-серверов для правила bootstrap ──────────
+    // Они должны резолвиться напрямую, чтобы не было курицы-и-яйца
+    const proxyServerDomains = outboundsList
+        .map(o => o.server)
+        .filter(s => s && !isIpAddress(s));
+    // Уникальные
+    const bootstrapDomains = [...new Set(proxyServerDomains)];
+
+    // ── DNS Servers (1.14 формат: type вместо address) ────────────────
     const dnsServers = [];
 
-    // local-dns ВСЕГДА первым — используется как bootstrap domain_resolver
-    // для DNS серверов с доменными адресами (DoH, DoT, UDP с hostname)
-    dnsServers.push({ "type": "local", "tag": "local-dns" });
+    // dns-local — системный резолвер, используется как domain_resolver для других серверов
+    dnsServers.push({ "type": "local", "tag": "dns-local" });
 
-    if (proxyDnsAddr) {
-        dnsServers.push(buildDnsServer('proxy-dns', proxyDnsAddr));
-    }
-
+    // dns-direct — для bypass-доменов и bootstrap
+    // Если выбран local — dns-direct = alias на dns-local (прямой системный резолвер)
     if (directDnsAddr) {
-        dnsServers.push(buildDnsServer('direct-dns', directDnsAddr));
+        const srv = buildDnsServer14("dns-direct", directDnsAddr);
+        if (needsDomainResolver(directDnsAddr)) {
+            srv.domain_resolver = {
+                "server": "dns-local",
+                "strategy": directStrategy || "prefer_ipv4"
+            };
+        }
+        dnsServers.push(srv);
+    } else {
+        // local выбран — dns-direct просто указывает на системный резолвер
+        dnsServers.push({ "type": "local", "tag": "dns-direct" });
     }
 
-    // DNS rules
+    // dns-remote — ходит через прокси (detour: proxy-select)
+    {
+        const addr = proxyDnsAddr || "https://dns.google/dns-query";
+        const srv = buildDnsServer14("dns-remote", addr);
+        if (needsDomainResolver(addr)) {
+            srv.domain_resolver = {
+                "server": "dns-direct",
+                "strategy": proxyStrategy || "prefer_ipv4"
+            };
+        }
+        srv.detour = "proxy-select";
+        dnsServers.push(srv);
+    }
+
+    // dns-fake — только если fakeip включён (1.14: inet4_range/inet6_range прямо в сервере)
+    if (useFakeip) {
+        dnsServers.push({
+            "type": "fakeip",
+            "tag": "dns-fake",
+            "inet4_range": "198.18.0.0/15",
+            "inet6_range": "fc00::/18"
+        });
+    }
+
+    // ── DNS Rules ──────────────────────────────────────────────────────
     const dnsRules = [];
-    // Proxy-forced domains → резолвим через proxy-dns (или local если proxy-dns нет)
-    if (proxyForceDomains.length > 0) {
-        dnsRules.push({
-            "domain_suffix": proxyForceDomains,
-            "server": proxyDnsAddr ? "proxy-dns" : "local-dns",
-            "action": "route"
-        });
-    }
-    if (bypassDomains.length > 0) {
-        dnsRules.push({
-            "domain_suffix": bypassDomains,
-            "server": directDnsAddr ? "direct-dns" : "local-dns",
-            "action": "route"
-        });
-    }
-    if (proxyDnsAddr) {
-        dnsRules.push({ "query_type": ["A","AAAA"], "server": "proxy-dns", "action": "route" });
+
+    // 1. Адреса прокси-серверов → резолвим напрямую (bootstrap, нет курицы-и-яйца)
+    {
+        const bootstrapList = [...bootstrapDomains];
+        // Если dns-remote — DoH с доменным именем, его тоже резолвим напрямую
+        const remoteDnsAddr = proxyDnsAddr || "https://dns.google/dns-query";
+        if (remoteDnsAddr.startsWith('https://') || remoteDnsAddr.startsWith('tls://')) {
+            try {
+                const u = new URL(remoteDnsAddr.replace(/^tls:\/\//, 'https://'));
+                if (!isIpAddress(u.hostname)) bootstrapList.push(u.hostname);
+            } catch(e) {}
+        }
+        if (bootstrapList.length > 0) {
+            dnsRules.push({
+                "domain": [...new Set(bootstrapList)],
+                "server": "dns-direct"
+            });
+        }
     }
 
-    // MTU
+    // 2. Bypass domains → dns-direct
+    if (bypassDomains.length > 0) {
+        dnsRules.push({ "domain_suffix": bypassDomains, "server": "dns-direct" });
+    }
+
+    // 3. Proxy-forced domains → dns-remote
+    if (proxyForceDomains.length > 0) {
+        dnsRules.push({ "domain_suffix": proxyForceDomains, "server": "dns-remote" });
+    }
+
+    // 4. Fakeip — A/AAAA запросы → dns-fake (без inbound фильтра — работает для всего TUN)
+    if (useFakeip) {
+        dnsRules.push({
+            "query_type": ["A", "AAAA"],
+            "server": "dns-fake"
+        });
+    }
+
+    // ── MTU ────────────────────────────────────────────────────────────
     const mtu = state.mtu === 'custom'
         ? parseInt(document.getElementById('mtuVal').value) || 1400
         : parseInt(state.mtu);
 
-    // Route exclude
+    // ── Route exclude ──────────────────────────────────────────────────
     const excludePrivate = document.getElementById('excludePrivate').checked;
-    const routeExclude = excludePrivate ? ["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","224.0.0.0/4","255.255.255.255/32"] : [];
+    const routeExclude = excludePrivate
+        ? ["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","224.0.0.0/4","255.255.255.255/32"]
+        : [];
 
-    // Selector / URLtest
+    // ── Selector / URLtest ─────────────────────────────────────────────
     const selectorObj = state.selectorMode === 'urltest' ? {
         "type": "urltest",
         "tag": "proxy-select",
@@ -2539,88 +2588,106 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "default": proxyTags[0]
     };
 
-    // Route rules — proxy-force идёт ПЕРВЫМ (до resolve и bypass)
-    const routeRules = [
-        { "action": "sniff", "sniffer": ["http","tls","dns","quic"], "timeout": "300ms" },
-        { "protocol": "dns", "action": "hijack-dns" }
-    ];
+    // ── Route Rules ────────────────────────────────────────────────────
+    const routeRules = [];
 
-    // Proxy-forced domains — до resolve, чтобы не попали в bypass
+    // Sniffer — правильный способ в 1.11+ (не в inbound)
+    routeRules.push({ "action": "sniff" });
+
+    // Перехват DNS (port 53 и protocol dns)
+    routeRules.push({ "action": "hijack-dns", "port": [53] });
+    routeRules.push({ "action": "hijack-dns", "protocol": ["dns"] });
+
+    // Proxy-forced domains — до всего остального
     if (proxyForceDomains.length > 0) {
         routeRules.push({
             "domain_suffix": proxyForceDomains,
-            "action": "route",
             "outbound": "proxy-select"
         });
     }
 
-    routeRules.push({ "action": "resolve" });
-    routeRules.push({ "ip_is_private": true, "action": "route", "outbound": "direct" });
+    // Локальные/приватные IP → direct
+    routeRules.push({
+        "ip_cidr": [
+            "224.0.0.0/3","172.16.0.0/12","127.0.0.0/8",
+            "10.0.0.0/8","192.168.0.0/16","169.254.0.0/16",
+            "::1/128","fc00::/7","fe80::/10"
+        ],
+        "outbound": "direct"
+    });
 
+    // Bypass domains → direct
     if (bypassDomains.length > 0) {
-        routeRules.push({
-            "domain_suffix": bypassDomains,
-            "action": "route",
-            "outbound": "direct"
-        });
+        routeRules.push({ "domain_suffix": bypassDomains, "outbound": "direct" });
     }
 
-    // Default DNS resolver
-    const defaultResolver = proxyDnsAddr
-        ? { "server": "proxy-dns", "rewrite_ttl": 60 }
-        : { "server": "local-dns", "rewrite_ttl": 60 };
+    // Весь трафик из tun → proxy-select
+    routeRules.push({ "inbound": ["tun-in"], "outbound": "proxy-select" });
+    // Весь трафик из mixed → proxy-select
+    routeRules.push({ "inbound": ["mixed-in"], "outbound": "proxy-select" });
 
+    // ip_is_private → direct (на случай resolved IP)
+    routeRules.push({ "ip_is_private": true, "outbound": "direct" });
+
+    // Мультикаст reject
+    routeRules.push({
+        "action": "reject",
+        "ip_cidr": ["224.0.0.0/3","ff00::/8"],
+        "source_ip_cidr": ["224.0.0.0/3","ff00::/8"]
+    });
+
+    // ── Mixed inbound ──────────────────────────────────────────────────
     const mixedListen = state.mixedListen;
     const mixedPort   = parseInt(document.getElementById('mixedPort').value) || 2085;
 
+    // ── Собираем конфиг ────────────────────────────────────────────────
     const config = {
         "log": { "level": "warn", "timestamp": true },
         "dns": {
-            "strategy": proxyStrategy,
-            "optimistic": document.getElementById('dnsOptimistic').checked,
-            "reverse_mapping": true,
+            "final": "dns-remote",
+            ...(useOptimistic ? { "optimistic": true } : {}),
             "servers": dnsServers,
-            "rules": dnsRules.length > 0 ? dnsRules : undefined,
-            "final": proxyDnsAddr ? "proxy-dns" : "local-dns"
+            "rules": dnsRules
         },
         "inbounds": [
+            {
+                "type": "tun",
+                "tag": "tun-in",
+                "address": ["172.19.0.1/28", "fdfe:dcba:9876::1/126"],
+                "auto_route": true,
+                "endpoint_independent_nat": true,
+                "mtu": mtu,
+                "stack": state.stack,
+                "strict_route": true,
+                ...(routeExclude.length > 0 ? { "route_exclude_address": routeExclude } : {}),
+            },
             {
                 "type": "mixed",
                 "tag": "mixed-in",
                 "listen": mixedListen,
                 "listen_port": mixedPort
-            },
-            {
-                "type": "tun",
-                "tag": "tun-in",
-                "address": ["172.19.0.1/30","fdfe:dcba:9876::1/126"],
-                "auto_route": true,
-                "stack": state.stack,
-                "mtu": mtu,
-                ...(routeExclude.length > 0 ? { "route_exclude_address": routeExclude } : {}),
             }
         ],
         "outbounds": [
             { "type": "direct", "tag": "direct" },
-            {
-                "type": "direct",
-                "tag": "direct-cdn",
-                "domain_resolver": { "server": "local-dns", "rewrite_ttl": 60 }
-            },
             selectorObj,
-            ...outboundsList
+            ...outboundsList.map(o => { const c = {...o}; delete c.domain_resolver; return c; })
         ],
         "route": {
-            "default_domain_resolver": defaultResolver,
-            "final": "proxy-select",
             "auto_detect_interface": true,
+            "default_domain_resolver": {
+                "server": "dns-local",
+                "rewrite_ttl": 60
+            },
+            "final": "proxy-select",
             "override_android_vpn": true,
             "rules": routeRules
         },
         "experimental": {
             "cache_file": {
                 "enabled": true,
-                "store_dns": document.getElementById('dnsOptimistic').checked
+                ...(useFakeip ? { "store_fakeip": true } : {}),
+                ...(useOptimistic ? { "store_dns": true } : {})
             }
         }
     };
@@ -2628,6 +2695,63 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     // Remove undefined keys
     const cleaned = JSON.parse(JSON.stringify(config));
     renderOutput(cleaned);
+}
+
+// Строит DNS сервер в формате sing-box 1.12+ (type вместо address)
+function buildDnsServer14(tag, addr) {
+    addr = addr.trim();
+    const lower = addr.toLowerCase();
+
+    // DoH: https://
+    if (lower.startsWith('https://') || lower.startsWith('http://')) {
+        try {
+            const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
+            const srv = { "type": "https", "tag": tag, "server": u.hostname };
+            if (u.port) srv.server_port = parseInt(u.port);
+            if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
+            return srv;
+        } catch(e) {
+            return { "type": "https", "tag": tag, "server": addr };
+        }
+    }
+
+    // DoT: tls://
+    if (lower.startsWith('tls://')) {
+        const rest = addr.slice(6);
+        const colonIdx = rest.lastIndexOf(':');
+        const hasPort = colonIdx > 0 && !isNaN(parseInt(rest.slice(colonIdx+1)));
+        const host = hasPort ? rest.slice(0, colonIdx) : rest;
+        const port = hasPort ? parseInt(rest.slice(colonIdx+1)) : undefined;
+        const srv = { "type": "tls", "tag": tag, "server": host };
+        if (port) srv.server_port = port;
+        return srv;
+    }
+
+    // UDP с портом: 1.1.1.1:5353
+    const colonIdx = addr.lastIndexOf(':');
+    if (!addr.startsWith('[') && colonIdx > 0 && !isNaN(parseInt(addr.slice(colonIdx+1)))) {
+        const host = addr.slice(0, colonIdx);
+        const port = parseInt(addr.slice(colonIdx+1));
+        return { "type": "udp", "tag": tag, "server": host, "server_port": port };
+    }
+
+    // Чистый IP или хост
+    return { "type": "udp", "tag": tag, "server": addr };
+}
+
+// Возвращает true если адрес DNS-сервера — доменное имя (нужен domain_resolver)
+function needsDomainResolver(addr) {
+    addr = addr.trim();
+    const lower = addr.toLowerCase();
+    if (lower.startsWith('https://') || lower.startsWith('http://')) {
+        try { return !isIpAddress(new URL(addr).hostname); } catch(e) { return false; }
+    }
+    if (lower.startsWith('tls://')) {
+        const rest = addr.slice(6).split(':')[0];
+        return !isIpAddress(rest);
+    }
+    const host = addr.split(':')[0];
+    return !isIpAddress(host);
 }
 
 // ─── OUTPUT ───────────────────────────────────────────────────────────
