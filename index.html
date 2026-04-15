@@ -784,10 +784,10 @@
                         </div>
                     </div>
                     <div class="field" id="directDnsCustom" style="display:none">
-                        <input type="text" id="directDnsAddr" placeholder="223.5.5.5 или https://223.5.5.5/dns-query" value="" oninput="updateDirectDnsStrategyVisibility()">
+                        <input type="text" id="directDnsAddr" placeholder="223.5.5.5 или https://223.5.5.5/dns-query" value="">
                     </div>
-                    <div class="field" id="directDnsStrategyRow" style="display:none">
-                        <label>Стратегия IP (резолв домена сервера)</label>
+                    <div class="field">
+                        <label>Стратегия IP</label>
                         <div class="select-row" id="directDnsStrategy" style="flex-wrap:wrap">
                             <button class="seg-btn active" data-v="prefer_ipv4" onclick="setStrategy('direct',this)">prefer v4</button>
                             <button class="seg-btn" data-v="prefer_ipv6" onclick="setStrategy('direct',this)">prefer v6</button>
@@ -806,10 +806,10 @@
                         </div>
                     </div>
                     <div class="field" id="proxyDnsCustom">
-                        <input type="text" id="proxyDnsAddr" placeholder="https://dns.google/dns-query" value="https://dns.google/dns-query" oninput="updateProxyDnsStrategyVisibility()">
+                        <input type="text" id="proxyDnsAddr" placeholder="https://dns.google/dns-query" value="https://dns.google/dns-query">
                     </div>
-                    <div class="field" id="proxyDnsStrategyRow" style="display:none">
-                        <label>Стратегия IP (резолв домена сервера)</label>
+                    <div class="field">
+                        <label>Стратегия IP</label>
                         <div class="select-row" id="proxyDnsStrategy" style="flex-wrap:wrap">
                             <button class="seg-btn" data-v="prefer_ipv4" onclick="setStrategy('proxy',this)">prefer v4</button>
                             <button class="seg-btn active" data-v="prefer_ipv6" onclick="setStrategy('proxy',this)">prefer v6</button>
@@ -831,9 +831,17 @@
             <div class="field">
                 <label>Fake IP <span class="badge" style="background:rgba(210,168,255,0.12);color:var(--accent4)">рекомендуется</span></label>
                 <div class="toggle-row">
-                    <label class="toggle"><input type="checkbox" id="fakeipEnabled" checked><span class="toggle-slider"></span></label>
+                    <label class="toggle"><input type="checkbox" id="fakeipEnabled" checked onchange="updateFakeipFieldVisibility()"><span class="toggle-slider"></span></label>
                     <span class="toggle-label">Fake IP для TUN — устраняет DNS утечки провайдеру</span>
                 </div>
+            </div>
+            <div class="field" id="fakeipRangesRow">
+                <label>Диапазоны Fake IP</label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <input type="text" id="fakeipInet4" value="198.18.0.0/15" style="flex:1;min-width:120px" placeholder="198.18.0.0/15">
+                    <input type="text" id="fakeipInet6" value="fc00::/18" style="flex:1;min-width:100px" placeholder="fc00::/18">
+                </div>
+                <div class="hint">IPv4 и IPv6 диапазоны для fakeip-ответов</div>
             </div>
         </div>
 
@@ -954,28 +962,12 @@ const stackHints = {
     mixed: 'mixed — UDP через system, TCP через gVisor',
 };
 
-// Инициализация видимости строк стратегии при загрузке
-document.addEventListener('DOMContentLoaded', () => {
-    updateDirectDnsStrategyVisibility();
-    updateProxyDnsStrategyVisibility();
-});
 
-function updateDirectDnsStrategyVisibility() {
-    const isCustom = state.directDnsType === 'custom';
-    const addr = (document.getElementById('directDnsAddr').value || '').trim();
-    const isDomain = isCustom && addr.length > 0 && (typeof needsDomainResolver === 'function'
-        ? needsDomainResolver(addr)
-        : !/^[\d.:[\]]+$/.test(addr.replace(/^https?:\/\//,'').replace(/^tls:\/\//,'').split('/')[0].split(':')[0]));
-    document.getElementById('directDnsStrategyRow').style.display = isDomain ? 'block' : 'none';
-}
 
-function updateProxyDnsStrategyVisibility() {
-    const isCustom = state.proxyDnsType === 'custom';
-    const addr = (document.getElementById('proxyDnsAddr').value || '').trim();
-    const isDomain = isCustom && addr.length > 0 && (typeof needsDomainResolver === 'function'
-        ? needsDomainResolver(addr)
-        : !/^[\d.:[\]]+$/.test(addr.replace(/^https?:\/\//,'').replace(/^tls:\/\//,'').split('/')[0].split(':')[0]));
-    document.getElementById('proxyDnsStrategyRow').style.display = isDomain ? 'block' : 'none';
+
+function updateFakeipFieldVisibility() {
+    const enabled = document.getElementById('fakeipEnabled').checked;
+    document.getElementById('fakeipRangesRow').style.display = enabled ? 'block' : 'none';
 }
 
 function setDnsType(which, btn) {
@@ -984,8 +976,6 @@ function setDnsType(which, btn) {
     btn.classList.add(which === 'direct' ? 'active-green' : 'active');
     state[which + 'DnsType'] = btn.dataset.v;
     document.getElementById(which + 'DnsCustom').style.display = btn.dataset.v === 'custom' ? 'block' : 'none';
-    if (which === 'direct') updateDirectDnsStrategyVisibility();
-    if (which === 'proxy')  updateProxyDnsStrategyVisibility();
 }
 
 
@@ -2483,18 +2473,13 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     dnsServers.push({ "type": "local", "tag": "dns-local" });
 
     // dns-direct — для bypass-доменов и bootstrap
-    // Если выбран local — dns-direct = alias на dns-local (прямой системный резолвер)
     if (directDnsAddr) {
         const srv = buildDnsServer14("dns-direct", directDnsAddr);
         if (needsDomainResolver(directDnsAddr)) {
-            srv.domain_resolver = {
-                "server": "dns-local",
-                "strategy": directStrategy || "prefer_ipv4"
-            };
+            srv.domain_resolver = { "server": "dns-local", "strategy": directStrategy };
         }
         dnsServers.push(srv);
     } else {
-        // local выбран — dns-direct просто указывает на системный резолвер
         dnsServers.push({ "type": "local", "tag": "dns-direct" });
     }
 
@@ -2503,10 +2488,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
         const srv = buildDnsServer14("dns-remote", addr);
         if (needsDomainResolver(addr)) {
-            srv.domain_resolver = {
-                "server": "dns-direct",
-                "strategy": proxyStrategy || "prefer_ipv4"
-            };
+            srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
         }
         srv.detour = "proxy-select";
         dnsServers.push(srv);
@@ -2514,11 +2496,13 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 
     // dns-fake — только если fakeip включён (1.14: inet4_range/inet6_range прямо в сервере)
     if (useFakeip) {
+        const inet4 = document.getElementById('fakeipInet4').value.trim() || "198.18.0.0/15";
+        const inet6 = document.getElementById('fakeipInet6').value.trim() || "fc00::/18";
         dnsServers.push({
             "type": "fakeip",
             "tag": "dns-fake",
-            "inet4_range": "198.18.0.0/15",
-            "inet6_range": "fc00::/18"
+            "inet4_range": inet4,
+            "inet6_range": inet6
         });
     }
 
@@ -2646,6 +2630,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "dns": {
             "final": "dns-remote",
             ...(useOptimistic ? { "optimistic": true } : {}),
+            ...(directStrategy ? { "strategy": directStrategy } : {}),
             "servers": dnsServers,
             "rules": dnsRules
         },
