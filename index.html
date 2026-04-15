@@ -2478,13 +2478,13 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     const useFakeip      = document.getElementById('fakeipEnabled').checked;
     const useOptimistic  = document.getElementById('dnsOptimistic').checked;
 
-    // Собираем адреса прокси-серверов для правила bootstrap
+    // ── Собираем адреса прокси-серверов для правила bootstrap ──────────
     const proxyServerDomains = outboundsList
         .map(o => o.server)
         .filter(s => s && !isIpAddress(s));
     const bootstrapDomains = [...new Set(proxyServerDomains)];
 
-    // DNS Servers
+    // ── DNS Servers ────────────────────────────────────────────────────
     const dnsServers = [];
 
     // dns-local
@@ -2501,46 +2501,54 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         dnsServers.push({ "type": "local", "tag": "dns-direct" });
     }
 
-    // dns-remote (порядок: type → tag → detour → domain_resolver → server → path)
+    // dns-remote (порядок полей: type → tag → detour → domain_resolver → server → path)
     {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
         const lower = addr.toLowerCase();
-        
-        const srv = { "type": "https", "tag": "dns-remote" };
-        srv.detour = "proxy-select";
-        
-        if (needsDomainResolver(addr)) {
-            srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
-        }
-        
+        let srv;
+
         if (lower.startsWith('https://') || lower.startsWith('http://')) {
             try {
                 const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
+                // Строим объект в нужном порядке ключей
+                srv = { "type": "https", "tag": "dns-remote" };
+                srv.detour = "proxy-select";
+                if (!isIpAddress(u.hostname)) {
+                    srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
+                }
                 srv.server = u.hostname;
                 if (u.port) srv.server_port = parseInt(u.port);
-                if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
+                const path = u.pathname && u.pathname !== '/' ? u.pathname : null;
+                if (path) srv.path = path;
             } catch(e) {
-                srv.server = addr;
+                srv = { "type": "https", "tag": "dns-remote", "detour": "proxy-select", "server": addr };
             }
         } else if (lower.startsWith('tls://')) {
             const rest = addr.slice(6);
             const colonIdx = rest.lastIndexOf(':');
             const hasPort = colonIdx > 0 && !isNaN(parseInt(rest.slice(colonIdx+1)));
-            srv.type = "tls";
-            srv.server = hasPort ? rest.slice(0, colonIdx) : rest;
-            if (hasPort) srv.server_port = parseInt(rest.slice(colonIdx+1));
+            const host = hasPort ? rest.slice(0, colonIdx) : rest;
+            const port = hasPort ? parseInt(rest.slice(colonIdx+1)) : undefined;
+            srv = { "type": "tls", "tag": "dns-remote" };
+            srv.detour = "proxy-select";
+            if (!isIpAddress(host)) {
+                srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
+            }
+            srv.server = host;
+            if (port) srv.server_port = port;
         } else {
             const colonIdx = addr.lastIndexOf(':');
-            if (!addr.startsWith('[') && colonIdx > 0 && !isNaN(parseInt(addr.slice(colonIdx+1)))) {
-                srv.type = "udp";
-                srv.server = addr.slice(0, colonIdx);
-                srv.server_port = parseInt(addr.slice(colonIdx+1));
-            } else {
-                srv.type = "udp";
-                srv.server = addr;
+            const hasPort = !addr.startsWith('[') && colonIdx > 0 && !isNaN(parseInt(addr.slice(colonIdx+1)));
+            const host = hasPort ? addr.slice(0, colonIdx) : addr;
+            const port = hasPort ? parseInt(addr.slice(colonIdx+1)) : undefined;
+            srv = { "type": "udp", "tag": "dns-remote" };
+            srv.detour = "proxy-select";
+            if (!isIpAddress(host)) {
+                srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
             }
+            srv.server = host;
+            if (port) srv.server_port = port;
         }
-        
         dnsServers.push(srv);
     }
 
@@ -2556,7 +2564,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         });
     }
 
-    // DNS Rules
+    // ── DNS Rules ──────────────────────────────────────────────────────
     const dnsRules = [];
 
     {
@@ -2593,18 +2601,18 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         });
     }
 
-    // MTU
+    // ── MTU ────────────────────────────────────────────────────────────
     const mtu = state.mtu === 'custom'
         ? parseInt(document.getElementById('mtuVal').value) || 1400
         : parseInt(state.mtu);
 
-    // Route exclude
+    // ── Route exclude ──────────────────────────────────────────────────
     const excludePrivate = document.getElementById('excludePrivate').checked;
     const routeExclude = excludePrivate
         ? ["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","224.0.0.0/4","255.255.255.255/32"]
         : [];
 
-    // Selector / URLtest
+    // ── Selector / URLtest ─────────────────────────────────────────────
     const selectorObj = state.selectorMode === 'urltest' ? {
         "type": "urltest",
         "tag": "proxy-select",
@@ -2619,7 +2627,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "default": proxyTags[0]
     };
 
-    // Route Rules
+    // ── Route Rules ────────────────────────────────────────────────────
     const routeRules = [];
 
     routeRules.push({ "action": "sniff" });
@@ -2655,11 +2663,11 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "action": "reject"
     });
 
-    // Mixed inbound
+    // ── Mixed inbound ──────────────────────────────────────────────────
     const mixedListen = state.mixedListen;
     const mixedPort   = parseInt(document.getElementById('mixedPort').value) || 2085;
 
-    // Собираем outbounds с чистыми transport
+    // ── Собираем outbounds с чистыми transport ─────────────────────────
     const cleanOutbounds = outboundsList.map(o => {
         const c = JSON.parse(JSON.stringify(o));
         delete c.domain_resolver;
@@ -2669,7 +2677,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         return c;
     });
 
-    // DNS объект
+    // ── DNS объект ─────────────────────────────────────────────────────
     const dnsObj = {
         "servers": dnsServers,
         "rules": dnsRules,
@@ -2678,7 +2686,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     if (directStrategy) dnsObj.strategy = directStrategy;
     if (useOptimistic) dnsObj.optimistic = true;
 
-    // TUN inbound
+    // ── TUN inbound ────────────────────────────────────────────────────
     const tunInbound = {
         "type": "tun",
         "tag": "tun-in",
@@ -2691,7 +2699,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     tunInbound.stack = state.stack;
     tunInbound.endpoint_independent_nat = true;
 
-    // Route объект
+    // ── Route объект ───────────────────────────────────────────────────
     const routeObj = {
         "rules": routeRules,
         "final": "proxy-select",
@@ -2703,7 +2711,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         }
     };
 
-    // Experimental объект
+    // ── Experimental объект ────────────────────────────────────────────
     const experimentalObj = {
         "cache_file": {
             "enabled": true
@@ -2712,7 +2720,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     if (useFakeip) experimentalObj.cache_file.store_fakeip = true;
     if (useOptimistic) experimentalObj.cache_file.store_dns = true;
 
-    // Итоговый конфиг
+    // ── Итоговый конфиг ────────────────────────────────────────────────
     const config = {
         "log": { "level": "warn", "timestamp": true },
         "dns": dnsObj,
@@ -2738,17 +2746,14 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 	}
 
 // Функция для dns-remote с правильным порядком: type → tag → (потом detour, domain_resolver) → server → path
-function buildDnsServer14Ordered(tag, addr) {
+function buildDnsServer14(tag, addr) {
     addr = addr.trim();
     const lower = addr.toLowerCase();
 
     if (lower.startsWith('https://') || lower.startsWith('http://')) {
         try {
             const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
-            const srv = { "type": "https", "tag": tag };
-            // server и path будут добавлены в конец, но сначала вернём объект без них?
-            // Нет, они должны быть после detour/domain_resolver. Создадим их здесь.
-            srv.server = u.hostname;
+            const srv = { "type": "https", "tag": tag, "server": u.hostname };
             if (u.port) srv.server_port = parseInt(u.port);
             if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
             return srv;
@@ -2770,13 +2775,11 @@ function buildDnsServer14Ordered(tag, addr) {
 
     const colonIdx = addr.lastIndexOf(':');
     if (!addr.startsWith('[') && colonIdx > 0 && !isNaN(parseInt(addr.slice(colonIdx+1)))) {
-        const host = addr.slice(0, colonIdx);
-        const port = parseInt(addr.slice(colonIdx+1));
-        return { "type": "udp", "tag": tag, "server": host, "server_port": port };
+        return { "type": "udp", "tag": tag, "server": addr.slice(0, colonIdx), "server_port": parseInt(addr.slice(colonIdx+1)) };
     }
 
     return { "type": "udp", "tag": tag, "server": addr };
-	}
+}
 
 // Возвращает true если адрес DNS-сервера — доменное имя (нужен domain_resolver)
 function needsDomainResolver(addr) {
