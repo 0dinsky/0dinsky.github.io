@@ -1740,7 +1740,13 @@ function _parseVless(url, params, tag, r) {
                   "uuid": url.username, "domain_resolver": r };
     const tls = buildTls(params, url.hostname); if (tls) out.tls = tls;
     if (params.get('flow')) out.flow = params.get('flow');
-    const tr = buildTransport(params); if (tr) out.transport = tr;
+    const tr = buildTransport(params);
+    if (tr) {
+        if (tr.type === 'grpc' && !tr.service_name) {
+            delete tr.service_name;
+        }
+        out.transport = tr;
+    }
     return out;
 }
 
@@ -1755,7 +1761,11 @@ function _parseVmess(urlStr, r) {
                                              "utls": { "enabled": true, "fingerprint": json.fp || "chrome" } };
         const net = json.net;
         if (net === 'ws')          out.transport = { "type": "ws",          "path": json.path || "/", ...(json.host ? { "headers": { "Host": json.host } } : {}) };
-        if (net === 'grpc')        out.transport = { "type": "grpc",        "service_name": json.path || "" };
+        if (net === 'grpc') {
+            const grpcTransport = { "type": "grpc" };
+            if (json.path) grpcTransport.service_name = json.path;
+            out.transport = grpcTransport;
+        }
         if (net === 'h2')          out.transport = { "type": "http",        "path": json.path || "/", ...(json.host ? { "host": [json.host] } : {}) };
         if (net === 'quic')        out.transport = { "type": "quic" };
         if (net === 'httpupgrade' || net === 'xhttp' || net === 'splithttp')
@@ -1763,7 +1773,7 @@ function _parseVmess(urlStr, r) {
         return out;
     } catch(e) { return null; }
 }
-
+	
 function _parseShadowsocks(url, params, tag, r) {
     let method = '', password = '';
     try {
@@ -1832,7 +1842,13 @@ function _parseTrojan(url, params, tag, r) {
     const out = { "type": "trojan", "tag": tag, "server": url.hostname, "server_port": parseInt(url.port),
                   "password": decodeURIComponent(url.username), "domain_resolver": r };
     out.tls = buildTls(params, url.hostname) || { "enabled": true, "server_name": params.get('sni') || url.hostname };
-    const tr = buildTransport(params); if (tr) out.transport = tr;
+    const tr = buildTransport(params);
+    if (tr) {
+        if (tr.type === 'grpc' && !tr.service_name) {
+            delete tr.service_name;
+        }
+        out.transport = tr;
+    }
     return out;
 }
 
@@ -1841,11 +1857,17 @@ function _parseTrojanGo(url, params, tag, r) {
                   "password": decodeURIComponent(url.username), "domain_resolver": r };
     out.tls = { "enabled": true, "server_name": params.get('sni') || url.hostname,
                 ...(params.get('fp') ? { "utls": { "enabled": true, "fingerprint": params.get('fp') } } : {}) };
-    const tr = buildTransport(params); if (tr) out.transport = tr;
+    const tr = buildTransport(params);
+    if (tr) {
+        if (tr.type === 'grpc' && !tr.service_name) {
+            delete tr.service_name;
+        }
+        out.transport = tr;
+    }
     if (params.get('mux') === '1') out.multiplex = { "enabled": true, "protocol": "smux", "max_streams": 8 };
     return out;
 }
-
+	
 function _parseNaive(url, params, tag, r) {
     // naive+https:// or naive+quic:// — sing-box has native "naive" outbound type
     const proto = url.protocol.replace(':','');  // "https" or "quic"
