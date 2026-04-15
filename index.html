@@ -2711,7 +2711,6 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     }
 
     routeRules.push({ "inbound": "tun-in", "outbound": "proxy-select" });
-    routeRules.push({ "inbound": "mixed-in", "outbound": "proxy-select" });
     routeRules.push({ "ip_is_private": true, "outbound": "direct" });
 
     routeRules.push({
@@ -2719,10 +2718,6 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "ip_cidr": ["224.0.0.0/3","ff00::/8"],
         "action": "reject"
     });
-
-    // ── Mixed inbound ──────────────────────────────────────────────────
-    const mixedListen = state.mixedListen;
-    const mixedPort   = parseInt(document.getElementById('mixedPort').value) || 2085;
 
     // ── Собираем outbounds с чистыми transport ─────────────────────────
     const cleanOutbounds = outboundsList.map(o => {
