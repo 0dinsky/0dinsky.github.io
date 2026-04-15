@@ -2458,7 +2458,6 @@ function generateConfig(links) {
 }
 
 function generateConfigFromParsed(outboundsList, proxyTags) {
-
     // Bypass domains (direct)
     const rawDomains = document.getElementById('bypassDomains').value.trim();
     const bypassDomains = rawDomains
@@ -2480,20 +2479,18 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     const useOptimistic  = document.getElementById('dnsOptimistic').checked;
 
     // ── Собираем адреса прокси-серверов для правила bootstrap ──────────
-    // Они должны резолвиться напрямую, чтобы не было курицы-и-яйца
     const proxyServerDomains = outboundsList
         .map(o => o.server)
         .filter(s => s && !isIpAddress(s));
-    // Уникальные
     const bootstrapDomains = [...new Set(proxyServerDomains)];
 
-    // ── DNS Servers (1.14 формат: type вместо address) ────────────────
+    // ── DNS Servers (исправленный порядок полей) ───────────────────────
     const dnsServers = [];
 
-    // dns-local — системный резолвер, используется как domain_resolver для других серверов
+    // dns-local
     dnsServers.push({ "type": "local", "tag": "dns-local" });
 
-    // dns-direct — для bypass-доменов и bootstrap
+    // dns-direct
     if (directDnsAddr) {
         const srv = buildDnsServer14("dns-direct", directDnsAddr);
         if (needsDomainResolver(directDnsAddr)) {
@@ -2504,7 +2501,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         dnsServers.push({ "type": "local", "tag": "dns-direct" });
     }
 
-    // dns-remote — ходит через прокси (detour: proxy-select)
+    // dns-remote
     {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
         const srv = buildDnsServer14("dns-remote", addr);
@@ -2515,7 +2512,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         dnsServers.push(srv);
     }
 
-    // dns-fake — только если fakeip включён (1.14: inet4_range/inet6_range прямо в сервере)
+    // dns-fake
     if (useFakeip) {
         const inet4 = document.getElementById('fakeipInet4').value.trim() || "198.18.0.0/15";
         const inet6 = document.getElementById('fakeipInet6').value.trim() || "fc00::/18";
@@ -2530,10 +2527,8 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     // ── DNS Rules ──────────────────────────────────────────────────────
     const dnsRules = [];
 
-    // 1. Адреса прокси-серверов → резолвим напрямую (bootstrap, нет курицы-и-яйца)
     {
         const bootstrapList = [...bootstrapDomains];
-        // Если dns-remote — DoH с доменным именем, его тоже резолвим напрямую
         const remoteDnsAddr = proxyDnsAddr || "https://dns.google/dns-query";
         if (remoteDnsAddr.startsWith('https://') || remoteDnsAddr.startsWith('tls://')) {
             try {
@@ -2549,17 +2544,14 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         }
     }
 
-    // 2. Bypass domains → dns-direct
     if (bypassDomains.length > 0) {
         dnsRules.push({ "domain_suffix": bypassDomains, "server": "dns-direct" });
     }
 
-    // 3. Proxy-forced domains → dns-remote
     if (proxyForceDomains.length > 0) {
         dnsRules.push({ "domain_suffix": proxyForceDomains, "server": "dns-remote" });
     }
 
-    // 4. Fakeip — A/AAAA запросы → dns-fake (без inbound фильтра — работает для всего TUN)
     if (useFakeip) {
         dnsRules.push({
             "query_type": ["A", "AAAA"],
@@ -2593,17 +2585,14 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "default": proxyTags[0]
     };
 
-    // ── Route Rules ────────────────────────────────────────────────────
+    // ── Route Rules (исправленный порядок: action в конце) ─────────────
     const routeRules = [];
 
-    // Sniffer — правильный способ в 1.11+ (не в inbound)
     routeRules.push({ "action": "sniff" });
 
-    // Перехват DNS (port 53 и protocol dns)
-    routeRules.push({ "action": "hijack-dns", "port": [53] });
-    routeRules.push({ "action": "hijack-dns", "protocol": ["dns"] });
+    routeRules.push({ "port": [53], "action": "hijack-dns" });
+    routeRules.push({ "protocol": ["dns"], "action": "hijack-dns" });
 
-    // Proxy-forced domains — до всего остального
     if (proxyForceDomains.length > 0) {
         routeRules.push({
             "domain_suffix": proxyForceDomains,
@@ -2611,7 +2600,6 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         });
     }
 
-    // Локальные/приватные IP → direct
     routeRules.push({
         "ip_cidr": [
             "224.0.0.0/3","172.16.0.0/12","127.0.0.0/8",
@@ -2621,51 +2609,56 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "outbound": "direct"
     });
 
-    // Bypass domains → direct
     if (bypassDomains.length > 0) {
         routeRules.push({ "domain_suffix": bypassDomains, "outbound": "direct" });
     }
 
-    // Весь трафик из tun → proxy-select
     routeRules.push({ "inbound": ["tun-in"], "outbound": "proxy-select" });
-    // Весь трафик из mixed → proxy-select
     routeRules.push({ "inbound": ["mixed-in"], "outbound": "proxy-select" });
 
-    // ip_is_private → direct (на случай resolved IP)
     routeRules.push({ "ip_is_private": true, "outbound": "direct" });
 
-    // Мультикаст reject
     routeRules.push({
-        "action": "reject",
+        "source_ip_cidr": ["224.0.0.0/3","ff00::/8"],
         "ip_cidr": ["224.0.0.0/3","ff00::/8"],
-        "source_ip_cidr": ["224.0.0.0/3","ff00::/8"]
+        "action": "reject"
     });
 
     // ── Mixed inbound ──────────────────────────────────────────────────
     const mixedListen = state.mixedListen;
     const mixedPort   = parseInt(document.getElementById('mixedPort').value) || 2085;
 
-    // ── Собираем конфиг ────────────────────────────────────────────────
+    // ── Собираем outbounds с чистыми transport ─────────────────────────
+    const cleanOutbounds = outboundsList.map(o => {
+        const c = JSON.parse(JSON.stringify(o));
+        delete c.domain_resolver;
+        if (c.transport?.type === 'grpc' && c.transport.service_name === '') {
+            delete c.transport.service_name;
+        }
+        return c;
+    });
+
+    // ── Собираем конфиг (исправленный порядок верхнеуровневых полей) ──
     const config = {
         "log": { "level": "warn", "timestamp": true },
         "dns": {
-            "final": "dns-remote",
-            ...(useOptimistic ? { "optimistic": true } : {}),
-            ...(directStrategy ? { "strategy": directStrategy } : {}),
             "servers": dnsServers,
-            "rules": dnsRules
+            "rules": dnsRules,
+            "final": "dns-remote",
+            "strategy": directStrategy,
+            ...(useOptimistic ? { "optimistic": true } : {})
         },
         "inbounds": [
             {
                 "type": "tun",
                 "tag": "tun-in",
+                "mtu": mtu,
                 "address": ["172.19.0.1/28", "fdfe:dcba:9876::1/126"],
                 "auto_route": true,
-                "endpoint_independent_nat": true,
-                "mtu": mtu,
-                "stack": state.stack,
                 "strict_route": true,
                 ...(routeExclude.length > 0 ? { "route_exclude_address": routeExclude } : {}),
+                "stack": state.stack,
+                "endpoint_independent_nat": true
             },
             {
                 "type": "mixed",
@@ -2677,17 +2670,17 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "outbounds": [
             { "type": "direct", "tag": "direct" },
             selectorObj,
-            ...outboundsList.map(o => { const c = {...o}; delete c.domain_resolver; return c; })
+            ...cleanOutbounds
         ],
         "route": {
+            "rules": routeRules,
+            "final": "proxy-select",
             "auto_detect_interface": true,
+            "override_android_vpn": true,
             "default_domain_resolver": {
                 "server": "dns-local",
                 "rewrite_ttl": 60
-            },
-            "final": "proxy-select",
-            "override_android_vpn": true,
-            "rules": routeRules
+            }
         },
         "experimental": {
             "cache_file": {
@@ -2698,12 +2691,9 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         }
     };
 
-    // Remove undefined keys
     const cleaned = JSON.parse(JSON.stringify(config));
     renderOutput(cleaned);
-}
-
-// Строит DNS сервер в формате sing-box 1.12+ (type вместо address)
+	}
 function buildDnsServer14(tag, addr) {
     addr = addr.trim();
     const lower = addr.toLowerCase();
