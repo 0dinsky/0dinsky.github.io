@@ -2505,6 +2505,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
         const srv = buildDnsServer14Ordered("dns-remote", addr);
+        // Добавляем detour и domain_resolver ПЕРЕД server и path
         srv.detour = "proxy-select";
         if (needsDomainResolver(addr)) {
             srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
@@ -2545,11 +2546,11 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     }
 
     if (bypassDomains.length > 0) {
-        dnsRules.push({ "domain_suffix": bypassDomains, "server": "dns-direct" });
+        const suffix = bypassDomains.length === 1 ? bypassDomains[0] : bypassDomains;
+        dnsRules.push({ "domain_suffix": suffix, "server": "dns-direct" });
     }
 
     if (proxyForceDomains.length > 0) {
-        // Для одного домена — строка, для нескольких — массив
         const suffix = proxyForceDomains.length === 1 ? proxyForceDomains[0] : proxyForceDomains;
         dnsRules.push({ "domain_suffix": suffix, "server": "dns-remote" });
     }
@@ -2591,17 +2592,12 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     const routeRules = [];
 
     routeRules.push({ "action": "sniff" });
-
-    // port и protocol как одиночные значения, не массивы
     routeRules.push({ "port": 53, "action": "hijack-dns" });
     routeRules.push({ "protocol": "dns", "action": "hijack-dns" });
 
     if (proxyForceDomains.length > 0) {
         const suffix = proxyForceDomains.length === 1 ? proxyForceDomains[0] : proxyForceDomains;
-        routeRules.push({
-            "domain_suffix": suffix,
-            "outbound": "proxy-select"
-        });
+        routeRules.push({ "domain_suffix": suffix, "outbound": "proxy-select" });
     }
 
     routeRules.push({
@@ -2618,10 +2614,8 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         routeRules.push({ "domain_suffix": suffix, "outbound": "direct" });
     }
 
-    // inbound как строка, не массив
     routeRules.push({ "inbound": "tun-in", "outbound": "proxy-select" });
     routeRules.push({ "inbound": "mixed-in", "outbound": "proxy-select" });
-
     routeRules.push({ "ip_is_private": true, "outbound": "direct" });
 
     routeRules.push({
@@ -2644,7 +2638,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         return c;
     });
 
-    // ── DNS объект с правильным порядком полей ─────────────────────────
+    // ── DNS объект ─────────────────────────────────────────────────────
     const dnsObj = {
         "servers": dnsServers,
         "rules": dnsRules,
@@ -2710,20 +2704,19 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     };
 
     renderOutput(config);
-}
+	}
 
-// Функция для dns-remote с правильным порядком: type → tag → detour → domain_resolver → server → path
+// Функция для dns-remote с правильным порядком: type → tag → (потом detour, domain_resolver) → server → path
 function buildDnsServer14Ordered(tag, addr) {
     addr = addr.trim();
     const lower = addr.toLowerCase();
 
-    // DoH: https://
     if (lower.startsWith('https://') || lower.startsWith('http://')) {
         try {
             const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
             const srv = { "type": "https", "tag": tag };
-            // detour и domain_resolver будут добавлены позже в generateConfigFromParsed
-            // server и path идут после них
+            // server и path будут добавлены в конец, но сначала вернём объект без них?
+            // Нет, они должны быть после detour/domain_resolver. Создадим их здесь.
             srv.server = u.hostname;
             if (u.port) srv.server_port = parseInt(u.port);
             if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
@@ -2733,7 +2726,6 @@ function buildDnsServer14Ordered(tag, addr) {
         }
     }
 
-    // DoT: tls://
     if (lower.startsWith('tls://')) {
         const rest = addr.slice(6);
         const colonIdx = rest.lastIndexOf(':');
@@ -2745,7 +2737,6 @@ function buildDnsServer14Ordered(tag, addr) {
         return srv;
     }
 
-    // UDP с портом
     const colonIdx = addr.lastIndexOf(':');
     if (!addr.startsWith('[') && colonIdx > 0 && !isNaN(parseInt(addr.slice(colonIdx+1)))) {
         const host = addr.slice(0, colonIdx);
