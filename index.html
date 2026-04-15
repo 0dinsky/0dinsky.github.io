@@ -2501,7 +2501,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         dnsServers.push({ "type": "local", "tag": "dns-direct" });
     }
 
-    // dns-remote (ВОТ ТУТ ИСПРАВЛЕННЫЙ ПОРЯДОК: detour → domain_resolver → server → path)
+    // dns-remote (порядок: type → tag → detour → domain_resolver → server → path)
     {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
         const srv = buildDnsServer14Ordered("dns-remote", addr);
@@ -2509,7 +2509,6 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         if (needsDomainResolver(addr)) {
             srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
         }
-        // server и path уже внутри srv, но убедимся что они после domain_resolver
         dnsServers.push(srv);
     }
 
@@ -2550,7 +2549,9 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     }
 
     if (proxyForceDomains.length > 0) {
-        dnsRules.push({ "domain_suffix": proxyForceDomains, "server": "dns-remote" });
+        // Для одного домена — строка, для нескольких — массив
+        const suffix = proxyForceDomains.length === 1 ? proxyForceDomains[0] : proxyForceDomains;
+        dnsRules.push({ "domain_suffix": suffix, "server": "dns-remote" });
     }
 
     if (useFakeip) {
@@ -2591,12 +2592,14 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 
     routeRules.push({ "action": "sniff" });
 
-    routeRules.push({ "port": [53], "action": "hijack-dns" });
-    routeRules.push({ "protocol": ["dns"], "action": "hijack-dns" });
+    // port и protocol как одиночные значения, не массивы
+    routeRules.push({ "port": 53, "action": "hijack-dns" });
+    routeRules.push({ "protocol": "dns", "action": "hijack-dns" });
 
     if (proxyForceDomains.length > 0) {
+        const suffix = proxyForceDomains.length === 1 ? proxyForceDomains[0] : proxyForceDomains;
         routeRules.push({
-            "domain_suffix": proxyForceDomains,
+            "domain_suffix": suffix,
             "outbound": "proxy-select"
         });
     }
@@ -2611,11 +2614,13 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     });
 
     if (bypassDomains.length > 0) {
-        routeRules.push({ "domain_suffix": bypassDomains, "outbound": "direct" });
+        const suffix = bypassDomains.length === 1 ? bypassDomains[0] : bypassDomains;
+        routeRules.push({ "domain_suffix": suffix, "outbound": "direct" });
     }
 
-    routeRules.push({ "inbound": ["tun-in"], "outbound": "proxy-select" });
-    routeRules.push({ "inbound": ["mixed-in"], "outbound": "proxy-select" });
+    // inbound как строка, не массив
+    routeRules.push({ "inbound": "tun-in", "outbound": "proxy-select" });
+    routeRules.push({ "inbound": "mixed-in", "outbound": "proxy-select" });
 
     routeRules.push({ "ip_is_private": true, "outbound": "direct" });
 
@@ -2642,14 +2647,13 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     // ── DNS объект с правильным порядком полей ─────────────────────────
     const dnsObj = {
         "servers": dnsServers,
-        "rules": dnsRules
+        "rules": dnsRules,
+        "final": "dns-remote"
     };
-    // Добавляем final и strategy в конец
-    dnsObj.final = "dns-remote";
     if (directStrategy) dnsObj.strategy = directStrategy;
     if (useOptimistic) dnsObj.optimistic = true;
 
-    // ── TUN inbound с правильным порядком полей ────────────────────────
+    // ── TUN inbound ────────────────────────────────────────────────────
     const tunInbound = {
         "type": "tun",
         "tag": "tun-in",
@@ -2662,7 +2666,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     tunInbound.stack = state.stack;
     tunInbound.endpoint_independent_nat = true;
 
-    // ── Route объект с правильным порядком полей ───────────────────────
+    // ── Route объект ───────────────────────────────────────────────────
     const routeObj = {
         "rules": routeRules,
         "final": "proxy-select",
@@ -2683,7 +2687,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     if (useFakeip) experimentalObj.cache_file.store_fakeip = true;
     if (useOptimistic) experimentalObj.cache_file.store_dns = true;
 
-    // ── Собираем итоговый конфиг ───────────────────────────────────────
+    // ── Итоговый конфиг ────────────────────────────────────────────────
     const config = {
         "log": { "level": "warn", "timestamp": true },
         "dns": dnsObj,
@@ -2708,7 +2712,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     renderOutput(config);
 }
 
-// Новая функция для dns-remote с правильным порядком полей
+// Функция для dns-remote с правильным порядком: type → tag → detour → domain_resolver → server → path
 function buildDnsServer14Ordered(tag, addr) {
     addr = addr.trim();
     const lower = addr.toLowerCase();
@@ -2718,7 +2722,8 @@ function buildDnsServer14Ordered(tag, addr) {
         try {
             const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
             const srv = { "type": "https", "tag": tag };
-            // detour и domain_resolver будут добавлены позже
+            // detour и domain_resolver будут добавлены позже в generateConfigFromParsed
+            // server и path идут после них
             srv.server = u.hostname;
             if (u.port) srv.server_port = parseInt(u.port);
             if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
@@ -2740,7 +2745,7 @@ function buildDnsServer14Ordered(tag, addr) {
         return srv;
     }
 
-    // UDP с портом: 1.1.1.1:5353
+    // UDP с портом
     const colonIdx = addr.lastIndexOf(':');
     if (!addr.startsWith('[') && colonIdx > 0 && !isNaN(parseInt(addr.slice(colonIdx+1)))) {
         const host = addr.slice(0, colonIdx);
@@ -2748,9 +2753,8 @@ function buildDnsServer14Ordered(tag, addr) {
         return { "type": "udp", "tag": tag, "server": host, "server_port": port };
     }
 
-    // Чистый IP или хост
     return { "type": "udp", "tag": tag, "server": addr };
-}
+	}
 
 // Возвращает true если адрес DNS-сервера — доменное имя (нужен domain_resolver)
 function needsDomainResolver(addr) {
