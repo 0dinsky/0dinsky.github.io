@@ -2774,18 +2774,6 @@ function renderOutput(obj) {
     window._lastConfig = json;
 }
 
-function formatOutput(btn) {
-    const text = window._lastConfig || document.getElementById('output').textContent;
-    try {
-        const obj = JSON.parse(text);
-        window._lastConfig = JSON.stringify(obj, null, 2);
-        renderOutput(obj);
-    } catch(e) {
-        showError('Невалидный JSON: ' + e.message);
-    }
-    if (btn) btn.blur();
-}
-
 function copyResult() {
     const text = window._lastConfig || document.getElementById('output').textContent;
     navigator.clipboard.writeText(text).then(() => {
