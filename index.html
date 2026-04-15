@@ -2484,7 +2484,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         .filter(s => s && !isIpAddress(s));
     const bootstrapDomains = [...new Set(proxyServerDomains)];
 
-    // ── DNS Servers (исправленный порядок полей) ───────────────────────
+    // ── DNS Servers ────────────────────────────────────────────────────
     const dnsServers = [];
 
     // dns-local
@@ -2501,14 +2501,15 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         dnsServers.push({ "type": "local", "tag": "dns-direct" });
     }
 
-    // dns-remote
+    // dns-remote (ВОТ ТУТ ИСПРАВЛЕННЫЙ ПОРЯДОК: detour → domain_resolver → server → path)
     {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
-        const srv = buildDnsServer14("dns-remote", addr);
+        const srv = buildDnsServer14Ordered("dns-remote", addr);
+        srv.detour = "proxy-select";
         if (needsDomainResolver(addr)) {
             srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
         }
-        srv.detour = "proxy-select";
+        // server и path уже внутри srv, но убедимся что они после domain_resolver
         dnsServers.push(srv);
     }
 
@@ -2585,7 +2586,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "default": proxyTags[0]
     };
 
-    // ── Route Rules (исправленный порядок: action в конце) ─────────────
+    // ── Route Rules ────────────────────────────────────────────────────
     const routeRules = [];
 
     routeRules.push({ "action": "sniff" });
@@ -2638,28 +2639,56 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         return c;
     });
 
-    // ── Собираем конфиг (исправленный порядок верхнеуровневых полей) ──
+    // ── DNS объект с правильным порядком полей ─────────────────────────
+    const dnsObj = {
+        "servers": dnsServers,
+        "rules": dnsRules
+    };
+    // Добавляем final и strategy в конец
+    dnsObj.final = "dns-remote";
+    if (directStrategy) dnsObj.strategy = directStrategy;
+    if (useOptimistic) dnsObj.optimistic = true;
+
+    // ── TUN inbound с правильным порядком полей ────────────────────────
+    const tunInbound = {
+        "type": "tun",
+        "tag": "tun-in",
+        "mtu": mtu,
+        "address": ["172.19.0.1/28", "fdfe:dcba:9876::1/126"],
+        "auto_route": true,
+        "strict_route": true
+    };
+    if (routeExclude.length > 0) tunInbound.route_exclude_address = routeExclude;
+    tunInbound.stack = state.stack;
+    tunInbound.endpoint_independent_nat = true;
+
+    // ── Route объект с правильным порядком полей ───────────────────────
+    const routeObj = {
+        "rules": routeRules,
+        "final": "proxy-select",
+        "auto_detect_interface": true,
+        "override_android_vpn": true,
+        "default_domain_resolver": {
+            "server": "dns-local",
+            "rewrite_ttl": 60
+        }
+    };
+
+    // ── Experimental объект ────────────────────────────────────────────
+    const experimentalObj = {
+        "cache_file": {
+            "enabled": true
+        }
+    };
+    if (useFakeip) experimentalObj.cache_file.store_fakeip = true;
+    if (useOptimistic) experimentalObj.cache_file.store_dns = true;
+
+    // ── Собираем итоговый конфиг ───────────────────────────────────────
     const config = {
         "log": { "level": "warn", "timestamp": true },
-        "dns": {
-            "servers": dnsServers,
-            "rules": dnsRules,
-            "final": "dns-remote",
-            "strategy": directStrategy,
-            ...(useOptimistic ? { "optimistic": true } : {})
-        },
+        "dns": dnsObj,
         "inbounds": [
-            {
-                "type": "tun",
-                "tag": "tun-in",
-                "mtu": mtu,
-                "address": ["172.19.0.1/28", "fdfe:dcba:9876::1/126"],
-                "auto_route": true,
-                "strict_route": true,
-                ...(routeExclude.length > 0 ? { "route_exclude_address": routeExclude } : {}),
-                "stack": state.stack,
-                "endpoint_independent_nat": true
-            },
+            tunInbound,
             {
                 "type": "mixed",
                 "tag": "mixed-in",
@@ -2672,29 +2701,15 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
             selectorObj,
             ...cleanOutbounds
         ],
-        "route": {
-            "rules": routeRules,
-            "final": "proxy-select",
-            "auto_detect_interface": true,
-            "override_android_vpn": true,
-            "default_domain_resolver": {
-                "server": "dns-local",
-                "rewrite_ttl": 60
-            }
-        },
-        "experimental": {
-            "cache_file": {
-                "enabled": true,
-                ...(useFakeip ? { "store_fakeip": true } : {}),
-                ...(useOptimistic ? { "store_dns": true } : {})
-            }
-        }
+        "route": routeObj,
+        "experimental": experimentalObj
     };
 
-    const cleaned = JSON.parse(JSON.stringify(config));
-    renderOutput(cleaned);
-	}
-function buildDnsServer14(tag, addr) {
+    renderOutput(config);
+}
+
+// Новая функция для dns-remote с правильным порядком полей
+function buildDnsServer14Ordered(tag, addr) {
     addr = addr.trim();
     const lower = addr.toLowerCase();
 
@@ -2702,7 +2717,9 @@ function buildDnsServer14(tag, addr) {
     if (lower.startsWith('https://') || lower.startsWith('http://')) {
         try {
             const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
-            const srv = { "type": "https", "tag": tag, "server": u.hostname };
+            const srv = { "type": "https", "tag": tag };
+            // detour и domain_resolver будут добавлены позже
+            srv.server = u.hostname;
             if (u.port) srv.server_port = parseInt(u.port);
             if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
             return srv;
@@ -2780,6 +2797,15 @@ function downloadResult() {
     a.href = URL.createObjectURL(blob);
     a.download = 'config.json';
     a.click();
+}
+
+// Заглушка для старых вызовов
+function formatOutput(btn) {
+    // Функция больше не используется, кнопка удалена
+}
+
+function showError(msg) {
+    document.getElementById('output').innerHTML = `<span style="color:var(--accent3)">// Ошибка: ${msg}</span>`;
 }
 </script>
 </body>
