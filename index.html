@@ -649,6 +649,119 @@
             color: var(--accent);
             margin-top: 6px;
         }
+        
+        /* Modal for editing profile */
+		.edit-modal-overlay {
+		    display: none;
+		    position: fixed; inset: 0;
+		    background: rgba(0,0,0,0.8);
+		    z-index: 200;
+		    align-items: center;
+		    justify-content: center;
+		    padding: 20px;
+		}
+		.edit-modal-overlay.open { display: flex; }
+		.edit-modal {
+		    background: var(--surface);
+		    border: 1px solid var(--border);
+		    border-radius: 12px;
+		    width: 100%;
+		    max-width: 560px;
+		    max-height: 85vh;
+		    overflow-y: auto;
+		}
+		.edit-modal-header {
+		    display: flex;
+		    justify-content: space-between;
+		    align-items: center;
+		    padding: 16px 20px;
+		    border-bottom: 1px solid var(--border);
+		    font-weight: 700;
+		}
+		.edit-modal-body {
+		    padding: 20px;
+		}
+		.edit-field {
+		    margin-bottom: 14px;
+		}
+		.edit-field label {
+		    font-size: 0.7rem;
+		    text-transform: uppercase;
+		    letter-spacing: 1px;
+		    color: var(--text-muted);
+		    margin-bottom: 5px;
+		    display: block;
+		}
+		.edit-field input, .edit-field select {
+		    width: 100%;
+		    background: var(--bg);
+		    border: 1px solid var(--border);
+		    border-radius: 6px;
+		    color: var(--text);
+		    font-family: 'JetBrains Mono', monospace;
+		    font-size: 12px;
+		    padding: 8px 10px;
+		}
+		.edit-field input:focus, .edit-field select:focus {
+		    border-color: var(--accent);
+		    outline: none;
+		}
+		.edit-modal-footer {
+		    display: flex;
+		    gap: 10px;
+		    justify-content: flex-end;
+		    padding: 16px 20px;
+		    border-top: 1px solid var(--border);
+		}
+		.edit-save-btn {
+		    background: var(--accent2);
+		    color: #fff;
+		    border: none;
+		    padding: 8px 20px;
+		    border-radius: 6px;
+		    cursor: pointer;
+		    font-weight: 600;
+		}
+		.edit-cancel-btn {
+		    background: var(--surface2);
+		    border: 1px solid var(--border);
+		    color: var(--text-muted);
+		    padding: 8px 20px;
+		    border-radius: 6px;
+		    cursor: pointer;
+		}
+		.edit-row {
+		    display: grid;
+		    grid-template-columns: 1fr 1fr;
+		    gap: 10px;
+		}
+		.checkbox-field {
+		    display: flex;
+		    align-items: center;
+		    gap: 10px;
+		    margin-top: 8px;
+		}
+		.checkbox-field input {
+		    width: 18px;
+		    height: 18px;
+		}
+        
+		.edit-btn {
+		    flex-shrink: 0;
+		    background: none;
+		    border: 1px solid var(--border);
+		    border-radius: 4px;
+		    color: var(--text-dim);
+		    font-size: 12px;
+		    padding: 2px 7px;
+		    cursor: pointer;
+		    transition: all 0.15s;
+		}
+		.edit-btn:hover {
+		    border-color: var(--accent);
+		    color: var(--accent);
+		}
+		
     </style>
 </head>
 <body>
@@ -908,6 +1021,123 @@
         </div>
         <pre id="output">// Здесь появится ваш итоговый конфиг...</pre>
     </div>
+    
+    <!-- EDIT PROFILE MODAL -->
+	<div class="edit-modal-overlay" id="editModal" onclick="if(event.target===this)closeEditModal()">
+	    <div class="edit-modal">
+	        <div class="edit-modal-header">
+	            <span>✏️ Редактировать профиль</span>
+	            <button class="modal-close" onclick="closeEditModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">×</button>
+	        </div>
+	        <div class="edit-modal-body">
+	            <div class="edit-field">
+	                <label>Тег (имя)</label>
+	                <input type="text" id="editTag" placeholder="proxy-name">
+	            </div>
+	            <div class="edit-field">
+	                <label>Тип</label>
+	                <select id="editType">
+					    <option value="vless">vless</option>
+					    <option value="vmess">vmess</option>
+					    <option value="trojan">trojan</option>
+					    <option value="trojan-go">trojan-go</option>
+					    <option value="shadowsocks">shadowsocks</option>
+					    <option value="shadowsocksr">shadowsocksr (SSR)</option>
+					    <option value="shadowtls">shadowtls</option>
+					    <option value="hysteria">hysteria</option>
+					    <option value="hysteria2">hysteria2</option>
+					    <option value="tuic">tuic</option>
+					    <option value="juicity">juicity</option>
+					    <option value="anytls">anytls</option>
+					    <option value="wireguard">wireguard</option>
+					    <option value="socks">socks4/5</option>
+					    <option value="http">http/https</option>
+					    <option value="ssh">ssh</option>
+					    <option value="naive">naive</option>
+					    <option value="mieru">mieru</option>
+					</select>
+	            </div>
+	            <div class="edit-row">
+	                <div class="edit-field">
+	                    <label>Сервер</label>
+	                    <input type="text" id="editServer" placeholder="example.com или IP">
+	                </div>
+	                <div class="edit-field">
+	                    <label>Порт</label>
+	                    <input type="number" id="editPort" placeholder="443">
+	                </div>
+	            </div>
+	            <div class="edit-field" id="editUuidField">
+	                <label>UUID / пароль</label>
+	                <input type="text" id="editUuid" placeholder="UUID или пароль">
+	            </div>
+	            <div class="edit-field" id="editMethodField" style="display:none">
+	                <label>Метод шифрования (shadowsocks)</label>
+	                <input type="text" id="editMethod" placeholder="aes-256-gcm">
+	            </div>
+	            <div class="edit-field">
+				    <label>Шифрование (TLS/Reality)</label>
+				    <select id="editSecurity" onchange="onSecurityChange()">
+				        <option value="none">none (без шифрования)</option>
+				        <option value="tls">TLS</option>
+				        <option value="reality">Reality</option>
+				    </select>
+				</div>
+				
+				<!-- TLS поля (показываются при tls или reality) -->
+				<div id="editTlsFields" style="display:none">
+				    <div class="edit-field">
+				        <label>SNI (Server Name)</label>
+				        <input type="text" id="editSni" placeholder="sni.example.com">
+				    </div>
+				    <div class="edit-field">
+				        <label>Fingerprint (UTLS)</label>
+				        <select id="editFp">
+				            <option value="chrome">chrome</option>
+				            <option value="firefox">firefox</option>
+				            <option value="safari">safari</option>
+				            <option value="ios">ios</option>
+				            <option value="edge">edge</option>
+				            <option value="random">random</option>
+				            <option value="randomized">randomized</option>
+				        </select>
+				    </div>
+				</div>
+				
+				<!-- Reality поля (показываются только при reality) -->
+				<div id="editRealityFields" style="display:none">
+				    <div class="edit-field">
+				        <label>Reality Public Key</label>
+				        <input type="text" id="editRealityPbk" placeholder="например: 0kP6SQF6-2PJ-ZhA9hRqE5jL8fO3kX1p">
+				    </div>
+				    <div class="edit-field">
+				        <label>Short ID</label>
+				        <input type="text" id="editRealitySid" placeholder="например: 6ba85179e30d">
+				    </div>
+				</div>
+				
+	            <div class="edit-field">
+	                <label>Transport</label>
+	                <select id="editTransport">
+	                    <option value="">tcp (по умолчанию)</option>
+	                    <option value="grpc">gRPC</option>
+	                    <option value="ws">WebSocket</option>
+	                    <option value="http">HTTP/2</option>
+	                    <option value="httpupgrade">HTTP Upgrade</option>
+	                </select>
+	            </div>
+	            <div class="edit-field" id="editTransportOpts" style="display:none">
+	                <label>Параметры транспорта (path, host)</label>
+	                <input type="text" id="editTransportPath" placeholder="path: / или service_name">
+	                <input type="text" id="editTransportHost" placeholder="host (для ws/http)" style="margin-top:8px">
+	            </div>
+	        </div>
+	        <div class="edit-modal-footer">
+	            <button class="edit-cancel-btn" onclick="closeEditModal()">Отмена</button>
+	            <button class="edit-save-btn" onclick="saveProfileEdit()">Сохранить</button>
+	        </div>
+	    </div>
+	</div>
 
 </div>
 
@@ -1438,14 +1668,24 @@ function renderProfilePanel() {
         if (isDupe) item.style.borderColor = 'var(--accent3)';
 
         item.innerHTML = `
-            <div class="profile-check">${p.enabled ? '✓' : ''}</div>
-            <span class="profile-type">${ob.type || '?'}</span>
-            <span class="profile-tag">${escHtml(ob.tag || '(без имени)')}${isDupe ? ' <span style="color:var(--accent3);font-size:9px">DUP</span>' : ''}</span>
-            ${inChain ? `<span class="chain-badge">#${chainIdx+1}</span>` : ''}
-            ${ob.server ? `<button class="ping-btn" data-server="${escHtml(ob.server)}" data-port="${ob.server_port||443}" title="Пинг ${escHtml(ob.server)}">${p._pingMs !== undefined ? (p._pingMs === null ? 'timeout' : p._pingMs+'ms') : 'ping'}</button>` : ''}
-            <button class="chain-btn${inChain ? ' active' : ''}" title="Цепочка">⛓</button>
-        `;
-
+		    <div class="profile-check">${p.enabled ? '✓' : ''}</div>
+		    <span class="profile-type">${ob.type || '?'}</span>
+		    <span class="profile-tag">${escHtml(ob.tag || '(без имени)')}${isDupe ? ' <span style="color:var(--accent3);font-size:9px">DUP</span>' : ''}</span>
+		    ${inChain ? `<span class="chain-badge">#${chainIdx+1}</span>` : ''}
+		    ${ob.server ? `<button class="ping-btn" data-server="${escHtml(ob.server)}" data-port="${ob.server_port||443}" title="Пинг ${escHtml(ob.server)}">${p._pingMs !== undefined ? (p._pingMs === null ? 'timeout' : p._pingMs+'ms') : 'ping'}</button>` : ''}
+		    <button class="edit-btn" title="Редактировать">✏️</button>
+		    <button class="chain-btn${inChain ? ' active' : ''}" title="Цепочка">⛓</button>
+		`;
+		
+		// Обработчик редактирования
+		const editBtn = item.querySelector('.edit-btn');
+		if (editBtn) {
+		    editBtn.addEventListener('click', (e) => {
+		        e.stopPropagation();
+		        openEditModal(i);
+		    });
+		}
+		
         if (ob.server) {
             const pingBtn = item.querySelector('.ping-btn');
             // Восстанавливаем цвет если уже был пинг
@@ -2372,16 +2612,17 @@ async function importFromFileInModal(input) {
 }
 
 function renderShareList(profiles, listEl) {
-    // Удаляем старые share-item и кнопки (не секцию импорта)
-    listEl.querySelectorAll('.share-item, .btn.btn-secondary').forEach(el => el.remove());
+    // Удаляем старые элементы, но сохраняем секцию импорта
+    const existingItems = listEl.querySelectorAll('.share-item, #shareEmptyHint, .btn.btn-secondary');
+    existingItems.forEach(el => el.remove());
 
     profiles.forEach(p => {
         const ob = p.outbound;
+        // Генерируем ссылку ЗАНОВО для каждого профиля
         const link = outboundToShareLink(ob);
         const item = document.createElement('div');
         item.className = 'share-item';
 
-        // Определяем наличие сервера для пинга
         const canPing = !!(ob.server);
 
         item.innerHTML = `
@@ -2391,7 +2632,6 @@ function renderShareList(profiles, listEl) {
             <button class="share-copy-btn">${link ? 'копировать' : 'sn://'}</button>
         `;
 
-        // ping badge
         if (canPing) {
             item.querySelector('.ping-badge').addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -2399,13 +2639,16 @@ function renderShareList(profiles, listEl) {
             });
         }
 
-        // copy button
         const effectiveLink = link || outboundToSN(ob);
-        item.querySelector('.share-copy-btn').addEventListener('click', (e) => {
+        const copyBtn = item.querySelector('.share-copy-btn');
+        copyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             navigator.clipboard.writeText(effectiveLink).then(() => {
-                e.target.textContent = '✓';
-                setTimeout(() => e.target.textContent = link ? 'копировать' : 'sn://', 1500);
+                copyBtn.textContent = '✓';
+                setTimeout(() => copyBtn.textContent = link ? 'копировать' : 'sn://', 1500);
+            }).catch(err => {
+                copyBtn.textContent = '✗';
+                setTimeout(() => copyBtn.textContent = link ? 'копировать' : 'sn://', 1500);
             });
         });
 
@@ -2418,18 +2661,23 @@ function renderShareList(profiles, listEl) {
     });
 
     // Кнопка "Скопировать все"
-    const copyAll = document.createElement('button');
-    copyAll.className = 'btn btn-secondary';
-    copyAll.style.cssText = 'width:100%;margin-top:10px;justify-content:center';
-    copyAll.textContent = 'Скопировать все ссылки';
-    copyAll.addEventListener('click', () => {
-        const all = profiles.map(p => outboundToShareLink(p.outbound) || outboundToSN(p.outbound)).filter(Boolean).join('\n');
-        navigator.clipboard.writeText(all).then(() => {
-            copyAll.textContent = '✓ Скопировано!';
-            setTimeout(() => copyAll.textContent = 'Скопировать все ссылки', 2000);
+    if (profiles.length > 0) {
+        const copyAll = document.createElement('button');
+        copyAll.className = 'btn btn-secondary';
+        copyAll.style.cssText = 'width:100%;margin-top:10px;justify-content:center';
+        copyAll.textContent = 'Скопировать все ссылки';
+        copyAll.addEventListener('click', () => {
+            const all = profiles.map(p => outboundToShareLink(p.outbound) || outboundToSN(p.outbound)).filter(Boolean).join('\n');
+            navigator.clipboard.writeText(all).then(() => {
+                copyAll.textContent = '✓ Скопировано!';
+                setTimeout(() => copyAll.textContent = 'Скопировать все ссылки', 2000);
+            }).catch(err => {
+                copyAll.textContent = '✗ Ошибка';
+                setTimeout(() => copyAll.textContent = 'Скопировать все ссылки', 2000);
+            });
         });
-    });
-    listEl.appendChild(copyAll);
+        listEl.appendChild(copyAll);
+    }
 }
 
 // ─── PING via WebSocket (TCP RTT, no CORS issues) ────────────────────
@@ -2882,6 +3130,292 @@ function formatOutput(btn) {
 function showError(msg) {
     document.getElementById('output').innerHTML = `<span style="color:var(--accent3)">// Ошибка: ${msg}</span>`;
 }
+
+// ─── EDIT PROFILE MODAL ───────────────────────────────────────────────
+let currentEditingIndex = null;
+
+function openEditModal(index) {
+    currentEditingIndex = index;
+    const profile = allParsedProfiles[index];
+    if (!profile) return;
+    
+    const ob = profile.outbound;
+    
+    // Заполняем базовые поля
+    document.getElementById('editTag').value = ob.tag || '';
+    document.getElementById('editType').value = ob.type || 'vless';
+    document.getElementById('editServer').value = ob.server || '';
+    document.getElementById('editPort').value = ob.server_port || 443;
+    
+    // UUID / password
+    const uuidField = document.getElementById('editUuid');
+    if (ob.uuid) uuidField.value = ob.uuid;
+    else if (ob.password) uuidField.value = ob.password;
+    else uuidField.value = '';
+    
+    // Метод для shadowsocks
+    if (ob.method) {
+        document.getElementById('editMethod').value = ob.method;
+        document.getElementById('editMethodField').style.display = 'block';
+    } else {
+        document.getElementById('editMethodField').style.display = 'none';
+    }
+    
+    // ─── ОПРЕДЕЛЯЕМ ТИП ШИФРОВАНИЯ ───────────────────────────────────────
+    let security = 'none';
+    if (ob.tls?.enabled) {
+        security = ob.tls.reality?.enabled ? 'reality' : 'tls';
+    }
+    document.getElementById('editSecurity').value = security;
+    
+    // SNI
+    document.getElementById('editSni').value = (ob.tls?.server_name) || '';
+    
+    // Fingerprint
+    const fp = (ob.tls?.utls?.fingerprint) || 'chrome';
+    document.getElementById('editFp').value = fp;
+    
+    // Reality поля
+    if (security === 'reality') {
+        document.getElementById('editRealityPbk').value = ob.tls?.reality?.public_key || '';
+        document.getElementById('editRealitySid').value = ob.tls?.reality?.short_id || '';
+    }
+    
+    // Показываем/скрываем поля в зависимости от выбранного типа
+    onSecurityChange();
+    
+    // ─── ТРАНСПОРТ ───────────────────────────────────────────────────────
+    const tr = ob.transport;
+    const trType = tr ? tr.type : '';
+    document.getElementById('editTransport').value = trType;
+    updateTransportFields(trType);
+    
+    if (tr) {
+        if (trType === 'grpc') {
+            document.getElementById('editTransportPath').value = tr.service_name || '';
+        } else if (trType === 'ws' || trType === 'http' || trType === 'httpupgrade') {
+            document.getElementById('editTransportPath').value = tr.path || '';
+            document.getElementById('editTransportHost').value = 
+                (tr.headers && tr.headers.Host) || 
+                (tr.host && tr.host[0]) || '';
+        }
+    } else {
+        document.getElementById('editTransportPath').value = '';
+        document.getElementById('editTransportHost').value = '';
+    }
+    
+    document.getElementById('editModal').classList.add('open');
+}
+
+function updateTransportFields(trType) {
+    const optsDiv = document.getElementById('editTransportOpts');
+    const pathInput = document.getElementById('editTransportPath');
+    const hostInput = document.getElementById('editTransportHost');
+    
+    if (trType && trType !== '') {
+        optsDiv.style.display = 'block';
+        
+        // Меняем подсказку в зависимости от типа транспорта
+        const label = document.querySelector('#editTransportOpts label');
+        if (trType === 'grpc') {
+            label.textContent = 'Service Name (gRPC)';
+            pathInput.placeholder = 'например: grpc.service';
+            hostInput.style.display = 'none';
+        } else if (trType === 'ws' || trType === 'httpupgrade') {
+            label.textContent = 'Path и Host';
+            pathInput.placeholder = 'path: /ws или /';
+            hostInput.style.display = 'block';
+            hostInput.placeholder = 'host (опционально)';
+        } else if (trType === 'http') {
+            label.textContent = 'Path и Host (HTTP/2)';
+            pathInput.placeholder = 'path: / или /http';
+            hostInput.style.display = 'block';
+            hostInput.placeholder = 'host (опционально)';
+        }
+    } else {
+        optsDiv.style.display = 'none';
+    }
+}
+
+// Слушатель изменения транспорта
+document.getElementById('editTransport')?.addEventListener('change', (e) => {
+    updateTransportFields(e.target.value);
+});
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.remove('open');
+    currentEditingIndex = null;
+}
+
+function saveProfileEdit() {
+    if (currentEditingIndex === null) return;
+    
+    const profile = allParsedProfiles[currentEditingIndex];
+    const ob = profile.outbound;
+    
+    // Базовые поля
+    ob.tag = document.getElementById('editTag').value;
+    ob.type = document.getElementById('editType').value;
+    ob.server = document.getElementById('editServer').value;
+    ob.server_port = parseInt(document.getElementById('editPort').value) || 443;
+    
+    // UUID / password
+    const uuidVal = document.getElementById('editUuid').value;
+    if (ob.type === 'vless' || ob.type === 'vmess' || ob.type === 'tuic' || ob.type === 'juicity') {
+        ob.uuid = uuidVal;
+        if (ob.password) delete ob.password;
+    } else if (ob.type === 'trojan' || ob.type === 'shadowsocks' || ob.type === 'hysteria2' || ob.type === 'anytls') {
+        ob.password = uuidVal;
+        if (ob.uuid) delete ob.uuid;
+    }
+    
+    // Метод для shadowsocks
+    if (ob.type === 'shadowsocks') {
+        ob.method = document.getElementById('editMethod').value;
+    }
+    
+    // ─── ШИФРОВАНИЕ (none / TLS / Reality) ───────────────────────────────
+    const security = document.getElementById('editSecurity').value;
+    
+    if (security === 'none') {
+        // Удаляем tls полностью
+        if (ob.tls) delete ob.tls;
+        // Удаляем flow если был (для VLESS)
+        if (ob.flow === 'xtls-rprx-vision') delete ob.flow;
+    } else {
+        // Создаём или обновляем tls
+        if (!ob.tls) ob.tls = {};
+        ob.tls.enabled = true;
+        ob.tls.server_name = document.getElementById('editSni').value || ob.server;
+        
+        // UTLS fingerprint
+        if (!ob.tls.utls) ob.tls.utls = {};
+        ob.tls.utls.enabled = true;
+        ob.tls.utls.fingerprint = document.getElementById('editFp').value;
+        
+        // Reality
+        if (security === 'reality') {
+            const pbk = document.getElementById('editRealityPbk').value.trim();
+            const sid = document.getElementById('editRealitySid').value.trim();
+            
+            if (pbk) {
+                ob.tls.reality = { 
+                    enabled: true, 
+                    public_key: pbk, 
+                    short_id: sid || '' 
+                };
+            }
+            
+            // Для VLESS Reality автоматически добавляем flow
+            if (ob.type === 'vless' && !ob.flow) {
+                ob.flow = 'xtls-rprx-vision';
+            }
+        } else {
+            // Удаляем reality если был
+            if (ob.tls.reality) delete ob.tls.reality;
+            // Удаляем flow если был добавлен для reality
+            if (ob.flow === 'xtls-rprx-vision') delete ob.flow;
+        }
+    }
+    
+    // ─── ТРАНСПОРТ ───────────────────────────────────────────────────────
+    const trType = document.getElementById('editTransport').value;
+    if (trType) {
+        if (!ob.transport) ob.transport = {};
+        ob.transport.type = trType;
+        const path = document.getElementById('editTransportPath').value;
+        const host = document.getElementById('editTransportHost').value;
+        
+        if (trType === 'grpc') {
+            ob.transport.service_name = path || '';
+            delete ob.transport.path;
+            delete ob.transport.headers;
+            delete ob.transport.host;
+        } else if (trType === 'ws' || trType === 'httpupgrade') {
+            ob.transport.path = path || '/';
+            if (host) {
+                ob.transport.headers = { Host: host };
+            } else if (ob.transport.headers) {
+                delete ob.transport.headers;
+            }
+            delete ob.transport.host;
+        } else if (trType === 'http') {
+            ob.transport.path = path || '/';
+            if (host) {
+                ob.transport.host = [host];
+            } else if (ob.transport.host) {
+                delete ob.transport.host;
+            }
+            delete ob.transport.headers;
+        }
+    } else {
+        if (ob.transport) delete ob.transport;
+    }
+    
+    closeEditModal();
+    renderProfilePanel();
+    
+    // Показываем уведомление об успехе
+    const output = document.getElementById('output');
+    output.innerHTML = `<span style="color:var(--accent2)">✅ Профиль "${ob.tag}" обновлён</span>`;
+    setTimeout(() => {
+        if (output.innerHTML.includes('✅')) {
+            output.innerHTML = '// Здесь появится ваш итоговый конфиг...';
+        }
+    }, 2000);
+}
+
+function onSecurityChange() {
+    const security = document.getElementById('editSecurity').value;
+    
+    // TLS поля (SNI, Fingerprint) показываем для tls и reality
+    const showTls = security === 'tls' || security === 'reality';
+    document.getElementById('editTlsFields').style.display = showTls ? 'block' : 'none';
+    
+    // Reality поля только для reality
+    const showReality = security === 'reality';
+    document.getElementById('editRealityFields').style.display = showReality ? 'block' : 'none';
+    
+    // Для VLESS при выборе Reality автоматически предлагаем flow
+    const type = document.getElementById('editType').value;
+    if (type === 'vless' && security === 'reality') {
+        // Можно добавить подсказку или автоматически установить flow
+        const flowHint = document.getElementById('flowHint');
+        if (flowHint) flowHint.style.display = 'block';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Слушатель изменения типа протокола
+    const typeSelect = document.getElementById('editType');
+    if (typeSelect) {
+        typeSelect.addEventListener('change', function() {
+            const type = this.value;
+            const uuidField = document.getElementById('editUuidField');
+            const methodField = document.getElementById('editMethodField');
+            
+            // Меняем label в зависимости от типа
+            const uuidLabel = uuidField.querySelector('label');
+            if (type === 'vless' || type === 'vmess' || type === 'tuic' || type === 'juicity') {
+                uuidLabel.textContent = 'UUID';
+            } else {
+                uuidLabel.textContent = 'Пароль';
+            }
+            
+            // Показываем метод только для shadowsocks
+            methodField.style.display = type === 'shadowsocks' ? 'block' : 'none';
+        });
+    }
+    
+    // Слушатель изменения транспорта
+    const transportSelect = document.getElementById('editTransport');
+    if (transportSelect) {
+        transportSelect.addEventListener('change', function() {
+            updateTransportFields(this.value);
+        });
+    }
+});
+
 </script>
 </body>
 </html>
