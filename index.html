@@ -2357,7 +2357,7 @@ function outboundToShareLink(ob) {
         if (type === 'tuic') return outboundToTuic(ob);
         if (type === 'socks') return outboundToSocks(ob);
         if (type === 'wireguard') return outboundToWg(ob);
-        // fallback — sn:// JSON
+        if (type === 'naive') return outboundToNaive(ob);
         return outboundToSN(ob);
     } catch(e) { return null; }
 }
@@ -3252,52 +3252,90 @@ function saveProfileEdit() {
     
     const profile = allParsedProfiles[currentEditingIndex];
     const ob = profile.outbound;
+    const oldType = ob.type;
+    const newType = document.getElementById('editType').value;
     
     // Базовые поля
     ob.tag = document.getElementById('editTag').value;
-    ob.type = document.getElementById('editType').value;
+    ob.type = newType;
     ob.server = document.getElementById('editServer').value;
     ob.server_port = parseInt(document.getElementById('editPort').value) || 443;
     
-    // UUID / password
-    const uuidVal = document.getElementById('editUuid').value;
-    if (ob.type === 'vless' || ob.type === 'vmess' || ob.type === 'tuic' || ob.type === 'juicity') {
-        ob.uuid = uuidVal;
-        if (ob.password) delete ob.password;
-    } else if (ob.type === 'trojan' || ob.type === 'shadowsocks' || ob.type === 'hysteria2' || ob.type === 'anytls') {
-        ob.password = uuidVal;
-        if (ob.uuid) delete ob.uuid;
+    // Очищаем специфичные поля при смене типа
+    if (oldType !== newType) {
+        // Удаляем все поля, которые могут быть несовместимы
+        delete ob.uuid;
+        delete ob.password;
+        delete ob.method;
+        delete ob.flow;
+        delete ob.security;
+        delete ob.alter_id;
+        delete ob.plugin;
+        delete ob.plugin_opts;
+        delete ob.transport;
+        delete ob.tls;
+        delete ob.multiplex;
+        delete ob.up_mbps;
+        delete ob.down_mbps;
+        delete ob.auth_str;
+        delete ob.obfs;
+        delete ob.congestion_control;
+        delete ob.private_key;
+        delete ob.peers;
+        delete ob.username;
+        delete ob.network;
+    }
+    
+    // UUID / password / auth в зависимости от типа
+    const authVal = document.getElementById('editUuid').value;
+    if (authVal) {
+        if (newType === 'vless' || newType === 'vmess' || newType === 'tuic' || newType === 'juicity') {
+            ob.uuid = authVal;
+        } else if (newType === 'naive') {
+            // naive использует username и password
+            const atIndex = authVal.indexOf('@') > 0 ? authVal.indexOf('@') : authVal.indexOf(':');
+            if (atIndex > 0) {
+                ob.username = authVal.substring(0, atIndex);
+                ob.password = authVal.substring(atIndex + 1);
+            } else {
+                ob.username = authVal;
+                ob.password = '';
+            }
+        } else if (newType === 'wireguard') {
+            ob.private_key = authVal;
+        } else {
+            // trojan, shadowsocks, hysteria2, anytls, ssh...
+            ob.password = authVal;
+        }
     }
     
     // Метод для shadowsocks
-    if (ob.type === 'shadowsocks') {
-        ob.method = document.getElementById('editMethod').value;
+    if (newType === 'shadowsocks') {
+        const methodVal = document.getElementById('editMethod').value;
+        if (methodVal) ob.method = methodVal;
     }
     
-    // ─── ШИФРОВАНИЕ (none / TLS / Reality) ───────────────────────────────
-    const security = document.getElementById('editSecurity').value;
+    // Naive network (из транспорта)
+    if (newType === 'naive') {
+        const trType = document.getElementById('editTransport').value;
+        ob.network = (trType === 'ws' || trType === 'http' || trType === 'httpupgrade') ? 'tcp' : 
+                     (trType === 'quic' ? 'quic' : 'tcp');
+    }
     
-    if (security === 'none') {
-        // Удаляем tls полностью
-        if (ob.tls) delete ob.tls;
-        // Удаляем flow если был (для VLESS)
-        if (ob.flow === 'xtls-rprx-vision') delete ob.flow;
-    } else {
-        // Создаём или обновляем tls
+    // Шифрование (TLS/Reality)
+    const security = document.getElementById('editSecurity').value;
+    if (security !== 'none') {
         if (!ob.tls) ob.tls = {};
         ob.tls.enabled = true;
         ob.tls.server_name = document.getElementById('editSni').value || ob.server;
         
-        // UTLS fingerprint
         if (!ob.tls.utls) ob.tls.utls = {};
         ob.tls.utls.enabled = true;
         ob.tls.utls.fingerprint = document.getElementById('editFp').value;
         
-        // Reality
         if (security === 'reality') {
             const pbk = document.getElementById('editRealityPbk').value.trim();
             const sid = document.getElementById('editRealitySid').value.trim();
-            
             if (pbk) {
                 ob.tls.reality = { 
                     enabled: true, 
@@ -3305,59 +3343,63 @@ function saveProfileEdit() {
                     short_id: sid || '' 
                 };
             }
-            
-            // Для VLESS Reality автоматически добавляем flow
-            if (ob.type === 'vless' && !ob.flow) {
+            if (newType === 'vless' && !ob.flow) {
                 ob.flow = 'xtls-rprx-vision';
             }
         } else {
-            // Удаляем reality если был
-            if (ob.tls.reality) delete ob.tls.reality;
-            // Удаляем flow если был добавлен для reality
-            if (ob.flow === 'xtls-rprx-vision') delete ob.flow;
-        }
-    }
-    
-    // ─── ТРАНСПОРТ ───────────────────────────────────────────────────────
-    const trType = document.getElementById('editTransport').value;
-    if (trType) {
-        if (!ob.transport) ob.transport = {};
-        ob.transport.type = trType;
-        const path = document.getElementById('editTransportPath').value;
-        const host = document.getElementById('editTransportHost').value;
-        
-        if (trType === 'grpc') {
-            ob.transport.service_name = path || '';
-            delete ob.transport.path;
-            delete ob.transport.headers;
-            delete ob.transport.host;
-        } else if (trType === 'ws' || trType === 'httpupgrade') {
-            ob.transport.path = path || '/';
-            if (host) {
-                ob.transport.headers = { Host: host };
-            } else if (ob.transport.headers) {
-                delete ob.transport.headers;
-            }
-            delete ob.transport.host;
-        } else if (trType === 'http') {
-            ob.transport.path = path || '/';
-            if (host) {
-                ob.transport.host = [host];
-            } else if (ob.transport.host) {
-                delete ob.transport.host;
-            }
-            delete ob.transport.headers;
+            delete ob.tls.reality;
         }
     } else {
-        if (ob.transport) delete ob.transport;
+        delete ob.tls;
     }
+    
+    // Транспорт (только для поддерживающих протоколов)
+    const supportsTransport = ['vless', 'vmess', 'trojan', 'shadowsocks'].includes(newType);
+    if (supportsTransport) {
+        const trType = document.getElementById('editTransport').value;
+        if (trType) {
+            if (!ob.transport) ob.transport = {};
+            ob.transport.type = trType;
+            const path = document.getElementById('editTransportPath').value;
+            const host = document.getElementById('editTransportHost').value;
+            
+            if (trType === 'grpc') {
+                ob.transport.service_name = path || '';
+                delete ob.transport.path;
+                delete ob.transport.headers;
+                delete ob.transport.host;
+            } else if (trType === 'ws' || trType === 'httpupgrade') {
+                ob.transport.path = path || '/';
+                if (host) {
+                    ob.transport.headers = { Host: host };
+                } else {
+                    delete ob.transport.headers;
+                }
+                delete ob.transport.host;
+            } else if (trType === 'http') {
+                ob.transport.path = path || '/';
+                if (host) {
+                    ob.transport.host = [host];
+                } else {
+                    delete ob.transport.host;
+                }
+                delete ob.transport.headers;
+            }
+        } else {
+            delete ob.transport;
+        }
+    } else {
+        delete ob.transport;
+    }
+    
+    // Удаляем domain_resolver (будет добавлен при генерации)
+    delete ob.domain_resolver;
     
     closeEditModal();
     renderProfilePanel();
     
-    // Показываем уведомление об успехе
     const output = document.getElementById('output');
-    output.innerHTML = `<span style="color:var(--accent2)">✅ Профиль "${ob.tag}" обновлён</span>`;
+    output.innerHTML = `<span style="color:var(--accent2)">✅ Профиль "${ob.tag}" обновлён (${newType})</span>`;
     setTimeout(() => {
         if (output.innerHTML.includes('✅')) {
             output.innerHTML = '// Здесь появится ваш итоговый конфиг...';
@@ -3415,6 +3457,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+function outboundToNaive(ob) {
+    const proto = ob.network === 'quic' ? 'quic' : 'https';
+    const params = new URLSearchParams();
+    if (ob.tls?.server_name) params.set('sni', ob.tls.server_name);
+    const q = params.toString();
+    const auth = ob.username ? `${encodeURIComponent(ob.username)}:${encodeURIComponent(ob.password || '')}` : '';
+    return `naive+${proto}://${auth}@${ob.server}:${ob.server_port}${q?'?'+q:''}#${encodeURIComponent(ob.tag)}`;
+}
 
 </script>
 </body>
