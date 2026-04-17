@@ -93,6 +93,7 @@
         .card-title .dot.green  { background: var(--accent2); }
         .card-title .dot.red    { background: var(--accent3); }
         .card-title .dot.purple { background: var(--accent4); }
+        .card-title .dot.orange { background: #ff9500; }
 
         textarea {
             width: 100%;
@@ -771,7 +772,7 @@
         <div class="logo">⚡</div>
         <div style="flex:1">
             <h1>Sing-Box Config Generator</h1>
-            <p style="color:var(--text-dim);font-size:0.75rem;margin-top:2px;font-family:'JetBrains Mono',monospace">sing-box 1.14+ · конвертер подписок и генератор конфигов</p>
+            <p style="color:var(--text-dim);font-size:0.75rem;margin-top:2px;font-family:'JetBrains Mono',monospace">sing-box 1.14+ · конвертер подписок и генератор конфигов · detour для rule_sets</p>
         </div>
         <button class="proto-badge" onclick="document.getElementById('protoModal').classList.add('open')" title="Поддерживаемые протоколы">?</button>
     </header>
@@ -881,6 +882,21 @@
             <div class="card-title"><span class="dot"></span>Домены всегда через прокси</div>
             <textarea id="proxyDomains" placeholder="google.com&#10;youtube.com&#10;twitter.com&#10;openai.com"></textarea>
             <div class="hint">Каждый домен с новой строки. Добавляются в route.rules до остальных правил.</div>
+        </div>
+
+        <!-- RULE SETS -->
+        <div class="card">
+            <div class="card-title"><span class="dot orange"></span>Rule Sets (опционально)</div>
+            <textarea id="ruleSetsConfig" placeholder='[
+  {
+    "type": "remote",
+    "tag": "geosite-cn",
+    "format": "binary",
+    "url": "https://example.com/geosite-cn.srs",
+    "detour": "direct"
+  }
+]' style="min-height:120px;font-family:'JetBrains Mono',monospace;font-size:11px"></textarea>
+            <div class="hint">JSON-массив rule_sets для sing-box 1.14+. Используйте <code>detour</code> вместо deprecated <code>download_detour</code>. Для remote rule-sets обязательно указывайте <code>detour</code> (например, "direct" или "proxy-select").</div>
         </div>
 
         <!-- DNS SETTINGS -->
@@ -2806,7 +2822,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         dnsServers.push({ "type": "local", "tag": "dns-direct" });
     }
 
-    // dns-remote (порядок полей: type → tag → detour → domain_resolver → server → path)
+    // dns-remote
     {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
         const lower = addr.toLowerCase();
@@ -2815,7 +2831,6 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         if (lower.startsWith('https://') || lower.startsWith('http://')) {
             try {
                 const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
-                // Строим объект в нужном порядке ключей
                 srv = { "type": "https", "tag": "dns-remote" };
                 srv.detour = "proxy-select";
                 if (!isIpAddress(u.hostname)) {
@@ -2967,6 +2982,43 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "action": "reject"
     });
 
+    // ── Rule Sets (ИСПРАВЛЕНО: удалён download_detour) ─────────────────
+    let ruleSets = null;
+    const ruleSetsInput = document.getElementById('ruleSetsConfig')?.value.trim();
+    if (ruleSetsInput) {
+        try {
+            const parsed = JSON.parse(ruleSetsInput);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                ruleSets = parsed.map(rs => {
+                    const cleaned = {...rs};
+                    // Удаляем deprecated download_detour
+                    if (cleaned.download_detour) {
+                        delete cleaned.download_detour;
+                    }
+                    // Удаляем detour для remote rule-sets — будет использоваться default_http_client
+                    if (cleaned.type === 'remote' && cleaned.detour) {
+                        delete cleaned.detour;
+                    }
+                    return cleaned;
+                });
+            }
+        } catch(e) {
+            console.error('Invalid rule_sets JSON:', e);
+        }
+    }
+
+    // ── HTTP Clients (ДЛЯ SING-BOX 1.14+ — ДВА КЛИЕНТА) ─────────────────
+    const httpClients = [
+        {
+            "tag": "proxy-client",
+            "detour": "proxy-select"
+        },
+        {
+            "tag": "direct-client",
+            "detour": "direct"
+        }
+    ];
+
     // ── Собираем outbounds с чистыми transport ─────────────────────────
     const cleanOutbounds = outboundsList.map(o => {
         const c = JSON.parse(JSON.stringify(o));
@@ -2999,7 +3051,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     tunInbound.stack = state.stack;
     tunInbound.endpoint_independent_nat = true;
 
-    // ── Route объект ───────────────────────────────────────────────────
+    // ── Route объект (С default_http_client) ───────────────────────────
     const routeObj = {
         "rules": routeRules,
         "final": "proxy-select",
@@ -3008,8 +3060,12 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "default_domain_resolver": {
             "server": "dns-local",
             "rewrite_ttl": 60
-        }
+        },
+        "default_http_client": "direct-client"  // Используем direct-client для rule-set'ов
     };
+    if (ruleSets && ruleSets.length > 0) {
+        routeObj.rule_set = ruleSets;
+    }
 
     // ── Experimental объект ────────────────────────────────────────────
     const experimentalObj = {
@@ -3024,9 +3080,8 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     const config = {
         "log": { "level": "warn", "timestamp": true },
         "dns": dnsObj,
-        "inbounds": [
-            tunInbound
-        ],
+        "http_clients": httpClients,
+        "inbounds": [ tunInbound ],
         "outbounds": [
             { "type": "direct", "tag": "direct" },
             selectorObj,
@@ -3037,7 +3092,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     };
 
     renderOutput(config);
-	}
+}
 
 // Функция для dns-remote с правильным порядком: type → tag → (потом detour, domain_resolver) → server → path
 function buildDnsServer14(tag, addr) {
