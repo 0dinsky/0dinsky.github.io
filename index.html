@@ -2779,8 +2779,6 @@ function isIpAddress(str) {
     return false;
 }
 
-
-
 // ─── CONFIG BUILDER ───────────────────────────────────────────────────
 function generateConfig(links) {
     const outboundsList = [];
@@ -2794,39 +2792,28 @@ function generateConfig(links) {
 }
 
 function generateConfigFromParsed(outboundsList, proxyTags) {
-    // Bypass domains (direct)
     const rawDomains = document.getElementById('bypassDomains').value.trim();
-    const bypassDomains = rawDomains
-        ? rawDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean)
-        : [];
-
-    // Proxy-forced domains (always through proxy)
+    const bypassDomains = rawDomains ? rawDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean) : [];
     const rawProxyDomains = document.getElementById('proxyDomains').value.trim();
-    const proxyForceDomains = rawProxyDomains
-        ? rawProxyDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean)
-        : [];
+    const proxyForceDomains = rawProxyDomains ? rawProxyDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean) : [];
 
-    // DNS settings
-    const directDnsAddr  = getDnsAddr('direct');
-    const proxyDnsAddr   = getDnsAddr('proxy');
+    const directDnsAddr = getDnsAddr('direct');
+    const proxyDnsAddr = getDnsAddr('proxy');
     const directStrategy = state.directDnsStrategy;
-    const proxyStrategy  = state.proxyDnsStrategy;
-    const useFakeip      = document.getElementById('fakeipEnabled').checked;
-    const useOptimistic  = document.getElementById('dnsOptimistic').checked;
+    const proxyStrategy = state.proxyDnsStrategy;
+    const useFakeip = document.getElementById('fakeipEnabled').checked;
+    const useOptimistic = document.getElementById('dnsOptimistic').checked;
 
-    // ── Собираем адреса прокси-серверов для правила bootstrap ──────────
-    const proxyServerDomains = outboundsList
-        .map(o => o.server)
-        .filter(s => s && !isIpAddress(s));
+    const proxyServerDomains = outboundsList.map(o => o.server).filter(s => s && !isIpAddress(s));
     const bootstrapDomains = [...new Set(proxyServerDomains)];
+
+    // ── Rule Sets из UI ────────────────────────────────────────────────
+    let ruleSets = getRuleSetsFromUI();
 
     // ── DNS Servers ────────────────────────────────────────────────────
     const dnsServers = [];
-
-    // dns-local
     dnsServers.push({ "type": "local", "tag": "dns-local" });
 
-    // dns-direct
     if (directDnsAddr) {
         const srv = buildDnsServer14("dns-direct", directDnsAddr);
         if (needsDomainResolver(directDnsAddr)) {
@@ -2842,19 +2829,15 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         const addr = proxyDnsAddr || "https://dns.google/dns-query";
         const lower = addr.toLowerCase();
         let srv;
-
         if (lower.startsWith('https://') || lower.startsWith('http://')) {
             try {
                 const u = new URL(addr.replace(/^http:\/\//i, 'https://'));
-                srv = { "type": "https", "tag": "dns-remote" };
-                srv.detour = "proxy-select";
+                srv = { "type": "https", "tag": "dns-remote", "detour": "proxy-select", "server": u.hostname };
+                if (u.port) srv.server_port = parseInt(u.port);
+                if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
                 if (!isIpAddress(u.hostname)) {
                     srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
                 }
-                srv.server = u.hostname;
-                if (u.port) srv.server_port = parseInt(u.port);
-                const path = u.pathname && u.pathname !== '/' ? u.pathname : null;
-                if (path) srv.path = path;
             } catch(e) {
                 srv = { "type": "https", "tag": "dns-remote", "detour": "proxy-select", "server": addr };
             }
@@ -2864,262 +2847,170 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
             const hasPort = colonIdx > 0 && !isNaN(parseInt(rest.slice(colonIdx+1)));
             const host = hasPort ? rest.slice(0, colonIdx) : rest;
             const port = hasPort ? parseInt(rest.slice(colonIdx+1)) : undefined;
-            srv = { "type": "tls", "tag": "dns-remote" };
-            srv.detour = "proxy-select";
+            srv = { "type": "tls", "tag": "dns-remote", "detour": "proxy-select", "server": host };
+            if (port) srv.server_port = port;
             if (!isIpAddress(host)) {
                 srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
             }
-            srv.server = host;
-            if (port) srv.server_port = port;
         } else {
             const colonIdx = addr.lastIndexOf(':');
             const hasPort = !addr.startsWith('[') && colonIdx > 0 && !isNaN(parseInt(addr.slice(colonIdx+1)));
             const host = hasPort ? addr.slice(0, colonIdx) : addr;
             const port = hasPort ? parseInt(addr.slice(colonIdx+1)) : undefined;
-            srv = { "type": "udp", "tag": "dns-remote" };
-            srv.detour = "proxy-select";
+            srv = { "type": "udp", "tag": "dns-remote", "detour": "proxy-select", "server": host };
+            if (port) srv.server_port = port;
             if (!isIpAddress(host)) {
                 srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
             }
-            srv.server = host;
-            if (port) srv.server_port = port;
         }
         dnsServers.push(srv);
     }
 
-    // dns-fake
     if (useFakeip) {
-        const inet4 = document.getElementById('fakeipInet4').value.trim() || "198.18.0.0/15";
-        const inet6 = document.getElementById('fakeipInet6').value.trim() || "fc00::/18";
         dnsServers.push({
-            "type": "fakeip",
-            "tag": "dns-fake",
-            "inet4_range": inet4,
-            "inet6_range": inet6
+            "type": "fakeip", "tag": "dns-fake",
+            "inet4_range": document.getElementById('fakeipInet4').value.trim() || "198.18.0.0/15",
+            "inet6_range": document.getElementById('fakeipInet6').value.trim() || "fc00::/18"
         });
     }
 
-    // ── DNS Rules ──────────────────────────────────────────────────────
+    // DNS Rules
     const dnsRules = [];
-
-    {
-        const bootstrapList = [...bootstrapDomains];
-        const remoteDnsAddr = proxyDnsAddr || "https://dns.google/dns-query";
-        if (remoteDnsAddr.startsWith('https://') || remoteDnsAddr.startsWith('tls://')) {
-            try {
-                const u = new URL(remoteDnsAddr.replace(/^tls:\/\//, 'https://'));
-                if (!isIpAddress(u.hostname)) bootstrapList.push(u.hostname);
-            } catch(e) {}
-        }
-        if (bootstrapList.length > 0) {
-            dnsRules.push({
-                "domain": [...new Set(bootstrapList)],
-                "server": "dns-direct"
-            });
-        }
+    if (bootstrapDomains.length > 0) {
+        dnsRules.push({ "domain": [...new Set(bootstrapDomains)], "server": "dns-direct" });
     }
-
     if (bypassDomains.length > 0) {
-        const suffix = bypassDomains.length === 1 ? bypassDomains[0] : bypassDomains;
-        dnsRules.push({ "domain_suffix": suffix, "server": "dns-direct" });
+        dnsRules.push({ "domain_suffix": bypassDomains, "server": "dns-direct" });
     }
-
     if (proxyForceDomains.length > 0) {
-        const suffix = proxyForceDomains.length === 1 ? proxyForceDomains[0] : proxyForceDomains;
-        dnsRules.push({ "domain_suffix": suffix, "server": "dns-remote" });
+        dnsRules.push({ "domain_suffix": proxyForceDomains, "server": "dns-remote" });
     }
-
     if (useFakeip) {
-        dnsRules.push({
-            "query_type": ["A", "AAAA"],
-            "server": "dns-fake"
-        });
+        dnsRules.push({ "query_type": ["A", "AAAA"], "server": "dns-fake" });
     }
 
-    // ── MTU ────────────────────────────────────────────────────────────
-    const mtu = state.mtu === 'custom'
-        ? parseInt(document.getElementById('mtuVal').value) || 1400
-        : parseInt(state.mtu);
-
-    // ── Route exclude ──────────────────────────────────────────────────
+    const mtu = state.mtu === 'custom' ? parseInt(document.getElementById('mtuVal').value) || 1400 : parseInt(state.mtu);
     const excludePrivate = document.getElementById('excludePrivate').checked;
-    const routeExclude = excludePrivate
-        ? ["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","224.0.0.0/4","255.255.255.255/32"]
-        : [];
 
-    // ── Selector / URLtest ─────────────────────────────────────────────
-    const selectorObj = state.selectorMode === 'urltest' ? {
-        "type": "urltest",
-        "tag": "proxy-select",
-        "outbounds": proxyTags,
-        "url": document.getElementById('urltestUrl').value || "https://www.gstatic.com/generate_204",
-        "interval": "3m",
-        "tolerance": 50
-    } : {
-        "type": "selector",
-        "tag": "proxy-select",
-        "outbounds": proxyTags,
-        "default": proxyTags[0]
+    const selectorObj = {
+        "type": "selector", "tag": "proxy-select",
+        "outbounds": proxyTags, "default": proxyTags[0] || "direct"
     };
 
-    // ── Route Rules ────────────────────────────────────────────────────
-    const routeRules = [];
+   // ─── ROUTE RULES (ТЕПЕРЬ ПРАВИЛЬНО С ВЫБОРОМ OUTBOUND) ─────────────────
+	const routeRules = [];
+	
+	// 1. ПРАВИЛА ДЛЯ ВСЕХ RULE_SET'ОВ ИЗ UI С УЧЁТОМ ВЫБРАННОГО OUTBOUND
+	for (const rs of ruleSets) {
+	    const outboundTarget = rs._outbound || 'proxy-select'; // proxy-select, direct или block
+	    routeRules.push({
+	        "rule_set": [rs.tag],
+	        "outbound": outboundTarget
+	    });
+	}
+	
+	// 2. Sniffing
+	routeRules.push({ "action": "sniff" });
+	
+	// 3. Hijack DNS
+	routeRules.push({ "port": 53, "action": "hijack-dns" });
+	
+	// 4. Принудительные прокси-домены (если есть)
+	if (proxyForceDomains.length > 0) {
+	    routeRules.push({ "domain_suffix": proxyForceDomains, "outbound": "proxy-select" });
+	}
+	
+	// 5. Приватные IP — напрямую
+	routeRules.push({
+	    "ip_cidr": [
+	        "224.0.0.0/3", "172.16.0.0/12", "127.0.0.0/8",
+	        "10.0.0.0/8", "192.168.0.0/16", "169.254.0.0/16",
+	        "::1/128", "fc00::/7", "fe80::/10"
+	    ],
+	    "outbound": "direct"
+	});
+	
+	// 6. bypassDomains (если есть) — напрямую
+	if (bypassDomains.length > 0) {
+	    routeRules.push({ "domain_suffix": bypassDomains, "outbound": "direct" });
+	}
+	
+	// 7. Весь остальной трафик из TUN — через прокси
+	routeRules.push({ "inbound": "tun-in", "outbound": "proxy-select" });
+	routeRules.push({ "ip_is_private": true, "outbound": "direct" });
+	
+	// 8. Запрещаем мультикаст
+	routeRules.push({
+	    "source_ip_cidr": ["224.0.0.0/3", "ff00::/8"],
+	    "ip_cidr": ["224.0.0.0/3", "ff00::/8"],
+	    "action": "reject"
+	});
 
-    routeRules.push({ "action": "sniff" });
-    routeRules.push({ "port": 53, "action": "hijack-dns" });
-    routeRules.push({ "protocol": "dns", "action": "hijack-dns" });
+    const httpClients = [{ "tag": "default-http-client", "detour": "proxy-select" }];
 
-    if (proxyForceDomains.length > 0) {
-        const suffix = proxyForceDomains.length === 1 ? proxyForceDomains[0] : proxyForceDomains;
-        routeRules.push({ "domain_suffix": suffix, "outbound": "proxy-select" });
-    }
-
-    routeRules.push({
-        "ip_cidr": [
-            "224.0.0.0/3","172.16.0.0/12","127.0.0.0/8",
-            "10.0.0.0/8","192.168.0.0/16","169.254.0.0/16",
-            "::1/128","fc00::/7","fe80::/10"
-        ],
-        "outbound": "direct"
-    });
-
-    if (bypassDomains.length > 0) {
-        const suffix = bypassDomains.length === 1 ? bypassDomains[0] : bypassDomains;
-        routeRules.push({ "domain_suffix": suffix, "outbound": "direct" });
-    }
-
-    routeRules.push({ "inbound": "tun-in", "outbound": "proxy-select" });
-    routeRules.push({ "ip_is_private": true, "outbound": "direct" });
-
-    routeRules.push({
-        "source_ip_cidr": ["224.0.0.0/3","ff00::/8"],
-        "ip_cidr": ["224.0.0.0/3","ff00::/8"],
-        "action": "reject"
-    });
-
-    // ── Rule Sets ———
-    let ruleSets = getRuleSetsFromUI();
-    const ruleSetsInput = document.getElementById('ruleSetsConfig')?.value.trim();
-    if (ruleSetsInput) {
-        try {
-            const parsed = JSON.parse(ruleSetsInput);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                ruleSets = parsed.map(rs => {
-                    const cleaned = {...rs};
-                    // Удаляем deprecated download_detour
-                    if (cleaned.download_detour) {
-                        delete cleaned.download_detour;
-                    }
-                    // Удаляем detour для remote rule-sets — будет использоваться default_http_client
-                    if (cleaned.type === 'remote' && cleaned.detour) {
-                        delete cleaned.detour;
-                    }
-                    return cleaned;
-                });
-            }
-        } catch(e) {
-            console.error('Invalid rule_sets JSON:', e);
-        }
-    }
-
-    // ── HTTP Clients (ДЛЯ SING-BOX 1.14+ — ДВА КЛИЕНТА) ─────────────────
-    const httpClients = [
-        {
-            "tag": "proxy-client",
-            "detour": "proxy-select"
-        },
-        {
-            "tag": "direct-client",
-            "detour": "direct"
-        }
-    ];
-
-    // ── Собираем outbounds с чистыми transport ─────────────────────────
     const cleanOutbounds = outboundsList.map(o => {
         const c = JSON.parse(JSON.stringify(o));
         delete c.domain_resolver;
-        if (c.transport?.type === 'grpc' && c.transport.service_name === '') {
-            delete c.transport.service_name;
-        }
+        if (c.transport?.type === 'grpc' && c.transport.service_name === '') delete c.transport.service_name;
         return c;
     });
 
-    // ── DNS объект ─────────────────────────────────────────────────────
-    const dnsObj = {
-        "servers": dnsServers,
-        "rules": dnsRules,
-        "final": "dns-remote"
-    };
+    const dnsObj = { "servers": dnsServers, "rules": dnsRules, "final": "dns-remote" };
     if (directStrategy) dnsObj.strategy = directStrategy;
     if (useOptimistic) dnsObj.optimistic = true;
 
-    // ==================== TUN INBOUND (мягкий режим по умолчанию) ====================
-    const vpnCompatibility = document.getElementById('vpnCompatibility') ? 
-                             document.getElementById('vpnCompatibility').checked : true;
-
     const tunInbound = {
-        "type": "tun",
-        "tag": "tun-in",
-        "mtu": mtu,
+        "type": "tun", "tag": "tun-in", "mtu": mtu,
         "address": ["172.19.0.1/28", "fdfe:dcba:9876::1/126"],
-        "auto_route": true,
-        "strict_route": false,           // По умолчанию выключено
-        "auto_redirect": false,          // По умолчанию выключено — решает xtables lock
-        "endpoint_independent_nat": true,
-        "stack": state.stack,
-        "platform": {
-            "http_proxy": {
-                "enabled": false
-            }
-        }
+        "auto_route": true, "strict_route": false, "auto_redirect": false,
+        "endpoint_independent_nat": true, "stack": state.stack,
+        "platform": { "http_proxy": { "enabled": false } }
     };
-
     if (excludePrivate) {
-        tunInbound.route_exclude_address = [
-            "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12",
-            "224.0.0.0/4", "255.255.255.255/32"
-        ];
+        tunInbound.route_exclude_address = ["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","224.0.0.0/4","255.255.255.255/32"];
     }
 
-    // ── Route объект (С default_http_client) ───────────────────────────
     const routeObj = {
         "rules": routeRules,
         "final": "proxy-select",
         "auto_detect_interface": true,
         "override_android_vpn": true,
-        "default_domain_resolver": {
-            "server": "dns-local",
-            "rewrite_ttl": 60
-        },
-        "default_http_client": "direct-client"  // Используем direct-client для rule-set'ов
+        "default_domain_resolver": { "server": "dns-local", "rewrite_ttl": 60 },
+        "default_http_client": "default-http-client"
     };
+    
     if (ruleSets && ruleSets.length > 0) {
         routeObj.rule_set = ruleSets;
     }
 
-    // ── Experimental объект ────────────────────────────────────────────
-    const experimentalObj = {
-        "cache_file": {
-            "enabled": true
-        }
-    };
+    const experimentalObj = { "cache_file": { "enabled": true } };
     if (useFakeip) experimentalObj.cache_file.store_fakeip = true;
     if (useOptimistic) experimentalObj.cache_file.store_dns = true;
 
-    // ── Итоговый конфиг ────────────────────────────────────────────────
+    // ... внутри generateConfigFromParsed ...
+
+    // ── ОЧИСТКА СЛУЖЕБНЫХ ПОЛЕЙ ПЕРЕД ГЕНЕРАЦИЕЙ ──────────────────────
+    // Убеждаемся, что в rule_set нет "_outbound"
+    const cleanRuleSets = ruleSets.map(rs => {
+        const clean = { ...rs };
+        delete clean._outbound; // Удаляем служебное поле
+        return clean;
+    });
+
     const config = {
-        "log": { "level": "warn", "timestamp": true },
-        "dns": dnsObj,
+        "log": { "level": "info", "timestamp": true },
         "http_clients": httpClients,
-        "inbounds": [ tunInbound ],
-        "outbounds": [
-            { "type": "direct", "tag": "direct" },
-            selectorObj,
-            ...cleanOutbounds
-        ],
+        "dns": dnsObj,
+        "inbounds": [tunInbound],
+        "outbounds": [selectorObj, ...cleanOutbounds, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
         "route": routeObj,
         "experimental": experimentalObj
     };
+
+    // ПРИМЕНЯЕМ ОЧИЩЕННЫЙ МАССИВ
+    if (cleanRuleSets.length > 0) {
+        config.route.rule_set = cleanRuleSets;
+    }
 
     renderOutput(config);
 }
@@ -3601,8 +3492,8 @@ function clearAllRuleSets() {
     }
 }
 
-// Удобная версия для телефона — каждое поле на новой строке
-function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
+// Удалить старую функцию addRuleSetRow и заменить на эту
+function addRuleSetRow(url = '', tag = '', outbound = 'proxy-select') {
     const container = document.getElementById('ruleSetsList');
     const row = document.createElement('div');
     row.className = 'rule-set-row';
@@ -3611,6 +3502,7 @@ function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
         padding: 14px; 
         border-radius: 10px; 
         border: 1px solid var(--border);
+        margin-bottom: 10px;
     `;
 
     row.innerHTML = `
@@ -3627,11 +3519,11 @@ function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
         </div>
         
         <div class="field">
-            <label style="font-size:0.75rem; color:var(--text-muted)">Detour (через что скачивать)</label>
-            <select class="rule-detour" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
-                <option value="proxy-select" ${detour === 'proxy-select' ? 'selected' : ''}>Proxy (через прокси)</option>
-                <option value="direct" ${detour === 'direct' ? 'selected' : ''}>Direct (прямо)</option>
-                <option value="block" ${detour === 'block' ? 'selected' : ''}>Block (заблокировать)</option>
+            <label style="font-size:0.75rem; color:var(--text-muted)">Outbound (куда отправлять)</label>
+            <select class="rule-outbound" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
+                <option value="proxy-select" ${outbound === 'proxy-select' ? 'selected' : ''}>🌍 Proxy (через прокси)</option>
+                <option value="direct" ${outbound === 'direct' ? 'selected' : ''}>⬇️ Direct (напрямую)</option>
+                <option value="block" ${outbound === 'block' ? 'selected' : ''}>🚫 Block (заблокировать)</option>
             </select>
         </div>
         
@@ -3643,14 +3535,7 @@ function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
     container.appendChild(row);
 }
 
-// Очистка всех правил
-function clearAllRuleSets() {
-    if (confirm('Удалить все Rule Sets?')) {
-        document.getElementById('ruleSetsList').innerHTML = '';
-    }
-}
-
-// Собираем Rule Sets (исправлено для sing-box 1.14+)
+// Заменить старую getRuleSetsFromUI на эту
 function getRuleSetsFromUI() {
     const rules = [];
     const rows = document.querySelectorAll('.rule-set-row');
@@ -3658,11 +3543,11 @@ function getRuleSetsFromUI() {
     rows.forEach(row => {
         const urlInput = row.querySelector('.rule-url');
         const tagInput = row.querySelector('.rule-tag');
-        const detourSelect = row.querySelector('.rule-detour');
+        const outboundSelect = row.querySelector('.rule-outbound');
         
         const url = urlInput ? urlInput.value.trim() : '';
         const tag = tagInput ? tagInput.value.trim() : '';
-        const detour = detourSelect ? detourSelect.value : 'proxy-select';
+        const outbound = outboundSelect ? outboundSelect.value : 'proxy-select';
         
         if (url && tag) {
             rules.push({
@@ -3670,7 +3555,7 @@ function getRuleSetsFromUI() {
                 "tag": tag,
                 "format": "binary",
                 "url": url,
-                "download_detour": detour   // ← ИСПРАВЛЕНО
+                "_outbound": outbound  // сохраняем выбранный outbound для правила
             });
         }
     });
