@@ -975,37 +975,52 @@
         </div>
 
         <!-- TUN SETTINGS -->
-        <div class="card">
-            <div class="card-title"><span class="dot red"></span>TUN настройки</div>
-            <div class="field">
-                <label>Stack (тип ядра сети)</label>
-                <div class="select-row" id="stackType">
-                	<button class="seg-btn active" data-v="gvisor" onclick="setStack(this)">gVisor</button>
-                    <button class="seg-btn" data-v="mixed" onclick="setStack(this)">mixed</button>
-                    <button class="seg-btn" data-v="system" onclick="setStack(this)">system</button>
-                </div>
-                <div class="hint" id="stackHint">gVisor — безопаснее, меньше утечек, выше нагрузка на CPU</div>
-            </div>
-            <div class="field">
-                <label>MTU</label>
-                <div class="select-row" id="mtuType">
-                    <button class="seg-btn active" data-v="1400" onclick="setMtu(this)">1400</button>
-                    <button class="seg-btn" data-v="1500" onclick="setMtu(this)">1500</button>
-                    <button class="seg-btn" data-v="9000" onclick="setMtu(this)">9000</button>
-                    <button class="seg-btn" data-v="custom" onclick="setMtu(this)">custom</button>
-                </div>
-            </div>
-            <div class="field" id="mtuCustom" style="display:none">
-                <input type="text" id="mtuVal" placeholder="1400" value="1400">
-            </div>
-            <div class="field">
-                <label>Исключить приватные сети</label>
-                <div class="toggle-row">
-                    <label class="toggle"><input type="checkbox" id="excludePrivate" checked><span class="toggle-slider"></span></label>
-                    <span class="toggle-label">192.168.x.x, 10.x.x.x и т.д.</span>
-                </div>
-            </div>
-        </div>
+		<div class="card">
+		    <div class="card-title"><span class="dot red"></span>TUN настройки</div>
+		    
+		    <div class="field">
+		        <label>Stack (тип ядра сети)</label>
+		        <div class="select-row" id="stackType">
+		            <button class="seg-btn active" data-v="gvisor" onclick="setStack(this)">gVisor</button>
+		            <button class="seg-btn" data-v="mixed" onclick="setStack(this)">mixed</button>
+		            <button class="seg-btn" data-v="system" onclick="setStack(this)">system</button>
+		        </div>
+		        <div class="hint" id="stackHint">gVisor — безопаснее, меньше утечек, выше нагрузка на CPU</div>
+		    </div>
+		
+		    <div class="field">
+		        <label>MTU</label>
+		        <div class="select-row" id="mtuType">
+		            <button class="seg-btn active" data-v="1400" onclick="setMtu(this)">1400</button>
+		            <button class="seg-btn" data-v="1500" onclick="setMtu(this)">1500</button>
+		            <button class="seg-btn" data-v="9000" onclick="setMtu(this)">9000</button>
+		            <button class="seg-btn" data-v="custom" onclick="setMtu(this)">custom</button>
+		        </div>
+		    </div>
+		    <div class="field" id="mtuCustom" style="display:none">
+		        <input type="text" id="mtuVal" placeholder="1400" value="1400">
+		    </div>
+		
+		    <div class="field">
+		        <label>Исключить приватные сети</label>
+		        <div class="toggle-row">
+		            <label class="toggle"><input type="checkbox" id="excludePrivate" checked><span class="toggle-slider"></span></label>
+		            <span class="toggle-label">192.168.x.x, 10.x.x.x и т.д.</span>
+		        </div>
+		    </div>
+		
+		    <!-- НОВАЯ ОПЦИЯ -->
+		    <div class="field">
+		        <label>Совместимость с другим VPN <span class="badge" style="background:rgba(255,149,0,0.15);color:#ff9500">важно</span></label>
+		        <div class="toggle-row">
+		            <label class="toggle"><input type="checkbox" id="vpnCompatibility" onchange="updateCompatibilityHint()"><span class="toggle-slider"></span></label>
+		            <span class="toggle-label">Включить, если уже работает другой VPN (решает "can't block xtables")</span>
+		        </div>
+		        <div class="hint" id="compatibilityHint" style="display:none;color:#ff9500">
+		            strict_route=false + disable xtables block
+		        </div>
+		    </div>
+		</div>
 
     <!-- ACTIONS -->
     <div class="actions">
@@ -3038,18 +3053,33 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     if (directStrategy) dnsObj.strategy = directStrategy;
     if (useOptimistic) dnsObj.optimistic = true;
 
-    // ── TUN inbound ────────────────────────────────────────────────────
+    // ==================== TUN INBOUND (мягкий режим по умолчанию) ====================
+    const vpnCompatibility = document.getElementById('vpnCompatibility') ? 
+                             document.getElementById('vpnCompatibility').checked : true;
+
     const tunInbound = {
         "type": "tun",
         "tag": "tun-in",
         "mtu": mtu,
         "address": ["172.19.0.1/28", "fdfe:dcba:9876::1/126"],
         "auto_route": true,
-        "strict_route": true
+        "strict_route": false,           // По умолчанию выключено
+        "auto_redirect": false,          // По умолчанию выключено — решает xtables lock
+        "endpoint_independent_nat": true,
+        "stack": state.stack,
+        "platform": {
+            "http_proxy": {
+                "enabled": false
+            }
+        }
     };
-    if (routeExclude.length > 0) tunInbound.route_exclude_address = routeExclude;
-    tunInbound.stack = state.stack;
-    tunInbound.endpoint_independent_nat = true;
+
+    if (excludePrivate) {
+        tunInbound.route_exclude_address = [
+            "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12",
+            "224.0.0.0/4", "255.255.255.255/32"
+        ];
+    }
 
     // ── Route объект (С default_http_client) ───────────────────────────
     const routeObj = {
@@ -3520,6 +3550,11 @@ function outboundToNaive(ob) {
     const q = params.toString();
     const auth = ob.username ? `${encodeURIComponent(ob.username)}:${encodeURIComponent(ob.password || '')}` : '';
     return `naive+${proto}://${auth}@${ob.server}:${ob.server_port}${q?'?'+q:''}#${encodeURIComponent(ob.tag)}`;
+}
+
+function updateCompatibilityHint() {
+    const enabled = document.getElementById('vpnCompatibility').checked;
+    document.getElementById('compatibilityHint').style.display = enabled ? 'block' : 'none';
 }
 
 </script>
