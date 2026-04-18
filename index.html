@@ -884,20 +884,20 @@
             <div class="hint">Каждый домен с новой строки. Добавляются в route.rules до остальных правил.</div>
         </div>
 
-        <!-- RULE SETS -->
-        <div class="card">
-            <div class="card-title"><span class="dot orange"></span>Rule Sets (опционально)</div>
-            <textarea id="ruleSetsConfig" placeholder='[
-  {
-    "type": "remote",
-    "tag": "geosite-cn",
-    "format": "binary",
-    "url": "https://example.com/geosite-cn.srs",
-    "detour": "direct"
-  }
-]' style="min-height:120px;font-family:'JetBrains Mono',monospace;font-size:11px"></textarea>
-            <div class="hint">JSON-массив rule_sets для sing-box 1.14+. Используйте <code>detour</code> вместо deprecated <code>download_detour</code>. Для remote rule-sets обязательно указывайте <code>detour</code> (например, "direct" или "proxy-select").</div>
-        </div>
+        <!-- RULE SETS - УДОБНЫЙ ДЛЯ ТЕЛЕФОНА -->
+		<div class="card">
+		    <div class="card-title"><span class="dot orange"></span>Rule Sets</div>
+		    
+		    <div id="ruleSetsList" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;"></div>
+		    
+		    <button class="btn btn-secondary" onclick="addRuleSetRow()" style="width:100%; padding:12px;">
+		        + Добавить Rule Set
+		    </button>
+		    
+		    <div class="hint" style="margin-top: 10px; font-size: 0.75rem;">
+		        Каждый Rule Set на отдельной строке. Указывай полный URL на .srs файл.
+		    </div>
+		</div>
 
         <!-- DNS SETTINGS -->
         <div class="card">
@@ -2997,8 +2997,8 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "action": "reject"
     });
 
-    // ── Rule Sets (ИСПРАВЛЕНО: удалён download_detour) ─────────────────
-    let ruleSets = null;
+    // ── Rule Sets ———
+    let ruleSets = getRuleSetsFromUI();
     const ruleSetsInput = document.getElementById('ruleSetsConfig')?.value.trim();
     if (ruleSetsInput) {
         try {
@@ -3555,6 +3555,126 @@ function outboundToNaive(ob) {
 function updateCompatibilityHint() {
     const enabled = document.getElementById('vpnCompatibility').checked;
     document.getElementById('compatibilityHint').style.display = enabled ? 'block' : 'none';
+}
+
+// Создание новой строки Rule Set
+function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
+    const container = document.getElementById('ruleSetsList');
+    const row = document.createElement('div');
+    row.className = 'rule-set-row';
+    row.style = `display: grid; grid-template-columns: 1fr 120px 100px 40px; gap: 8px; align-items: center; 
+                 background: var(--surface2); padding: 10px; border-radius: 8px; border: 1px solid var(--border);`;
+
+    row.innerHTML = `
+        <input type="text" class="rule-url" placeholder="https://.../file.srs" value="${url}" style="width:100%; font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+        <input type="text" class="rule-tag" placeholder="Тег (например: geosite-cn)" value="${tag}" style="width:100%; font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+        <select class="rule-detour" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+            <option value="proxy-select" ${detour === 'proxy-select' ? 'selected' : ''}>Proxy</option>
+            <option value="direct" ${detour === 'direct' ? 'selected' : ''}>Direct</option>
+            <option value="block" ${detour === 'block' ? 'selected' : ''}>Block</option>
+        </select>
+        <button onclick="this.parentElement.remove()" style="background:none; border:none; color:var(--accent3); font-size:18px; cursor:pointer; padding:0;">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+// Быстрые пресеты
+function addPopularRuleSetsQuick() {
+    const presets = [
+        {url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs", tag: "geosite-cn", detour: "direct"},
+        {url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs", tag: "geosite-ads", detour: "block"},
+        {url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/telegram.srs", tag: "geosite-telegram", detour: "proxy-select"},
+        {url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/google.srs", tag: "geosite-google", detour: "proxy-select"},
+        {url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs", tag: "geoip-cn", detour: "direct"}
+    ];
+
+    presets.forEach(p => {
+        // Проверяем, есть ли уже такой тег
+        const exists = Array.from(document.querySelectorAll('.rule-tag')).some(input => input.value === p.tag);
+        if (!exists) addRuleSetRow(p.url, p.tag, p.detour);
+    });
+}
+
+function clearAllRuleSets() {
+    if (confirm('Удалить все Rule Sets?')) {
+        document.getElementById('ruleSetsList').innerHTML = '';
+    }
+}
+
+// Удобная версия для телефона — каждое поле на новой строке
+function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
+    const container = document.getElementById('ruleSetsList');
+    const row = document.createElement('div');
+    row.className = 'rule-set-row';
+    row.style = `
+        background: var(--surface2); 
+        padding: 14px; 
+        border-radius: 10px; 
+        border: 1px solid var(--border);
+    `;
+
+    row.innerHTML = `
+        <div class="field" style="margin-bottom:10px">
+            <label style="font-size:0.75rem; color:var(--text-muted)">URL (.srs файл)</label>
+            <input type="text" class="rule-url" placeholder="https://raw.githubusercontent.com/.../cn.srs" 
+                   value="${url}" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
+        </div>
+        
+        <div class="field" style="margin-bottom:10px">
+            <label style="font-size:0.75rem; color:var(--text-muted)">Тег (имя правила)</label>
+            <input type="text" class="rule-tag" placeholder="geosite-cn или geoip-ru" 
+                   value="${tag}" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
+        </div>
+        
+        <div class="field">
+            <label style="font-size:0.75rem; color:var(--text-muted)">Detour (через что скачивать)</label>
+            <select class="rule-detour" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
+                <option value="proxy-select" ${detour === 'proxy-select' ? 'selected' : ''}>Proxy (через прокси)</option>
+                <option value="direct" ${detour === 'direct' ? 'selected' : ''}>Direct (прямо)</option>
+                <option value="block" ${detour === 'block' ? 'selected' : ''}>Block (заблокировать)</option>
+            </select>
+        </div>
+        
+        <button onclick="this.parentElement.remove()" 
+                style="margin-top:12px; width:100%; padding:10px; background:var(--surface); border:1px solid var(--accent3); color:var(--accent3); border-radius:8px; font-weight:600;">
+            ✕ Удалить это правило
+        </button>
+    `;
+    container.appendChild(row);
+}
+
+// Очистка всех правил
+function clearAllRuleSets() {
+    if (confirm('Удалить все Rule Sets?')) {
+        document.getElementById('ruleSetsList').innerHTML = '';
+    }
+}
+
+// Собираем Rule Sets (исправлено для sing-box 1.14+)
+function getRuleSetsFromUI() {
+    const rules = [];
+    const rows = document.querySelectorAll('.rule-set-row');
+    
+    rows.forEach(row => {
+        const urlInput = row.querySelector('.rule-url');
+        const tagInput = row.querySelector('.rule-tag');
+        const detourSelect = row.querySelector('.rule-detour');
+        
+        const url = urlInput ? urlInput.value.trim() : '';
+        const tag = tagInput ? tagInput.value.trim() : '';
+        const detour = detourSelect ? detourSelect.value : 'proxy-select';
+        
+        if (url && tag) {
+            rules.push({
+                "type": "remote",
+                "tag": tag,
+                "format": "binary",
+                "url": url,
+                "download_detour": detour   // ← ИСПРАВЛЕНО
+            });
+        }
+    });
+    return rules;
 }
 
 </script>
