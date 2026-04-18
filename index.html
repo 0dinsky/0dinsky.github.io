@@ -746,7 +746,57 @@
 		    width: 18px;
 		    height: 18px;
 		}
-        
+		.rule-outbound {
+		    width: 100%;
+		    font-family: 'JetBrains Mono', monospace;
+		    font-size: 13px;
+		    padding: 10px 14px;
+		    background: var(--bg);
+		    border: 1px solid var(--border);
+		    border-radius: 8px;
+		    color: var(--text);
+		    cursor: pointer;
+		    transition: all 0.2s;
+		    font-weight: 500;
+		    appearance: none;
+		    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237d8590' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+		    background-repeat: no-repeat;
+		    background-position: right 12px center;
+		}
+		
+		.rule-outbound option {
+		    padding: 8px;
+		    background: var(--surface);
+		}
+		
+		/* Опционально: красивые цветные бейджи для визуального отображения стратегии */
+		.outbound-badge {
+		    display: inline-block;
+		    padding: 4px 10px;
+		    border-radius: 20px;
+		    font-family: 'JetBrains Mono', monospace;
+		    font-size: 11px;
+		    font-weight: 600;
+		    letter-spacing: 0.3px;
+		}
+		
+		.outbound-badge.proxy {
+		    background: rgba(88, 166, 255, 0.15);
+		    color: var(--accent);
+		    border: 1px solid rgba(88, 166, 255, 0.3);
+		}
+		
+		.outbound-badge.direct {
+		    background: rgba(63, 185, 80, 0.15);
+		    color: var(--accent2);
+		    border: 1px solid rgba(63, 185, 80, 0.3);
+		}
+		
+		.outbound-badge.block {
+		    background: rgba(247, 129, 102, 0.15);
+		    color: var(--accent3);
+		    border: 1px solid rgba(247, 129, 102, 0.3);
+		}
 		.edit-btn {
 		    flex-shrink: 0;
 		    background: none;
@@ -3492,7 +3542,6 @@ function clearAllRuleSets() {
     }
 }
 
-// Удалить старую функцию addRuleSetRow и заменить на эту
 function addRuleSetRow(url = '', tag = '', outbound = 'proxy-select') {
     const container = document.getElementById('ruleSetsList');
     const row = document.createElement('div');
@@ -3505,33 +3554,92 @@ function addRuleSetRow(url = '', tag = '', outbound = 'proxy-select') {
         margin-bottom: 10px;
     `;
 
+    // Уникальный ID для группы кнопок
+    const groupId = 'outbound_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
     row.innerHTML = `
-        <div class="field" style="margin-bottom:10px">
-            <label style="font-size:0.75rem; color:var(--text-muted)">URL (.srs файл)</label>
+        <div class="field" style="margin-bottom:12px">
+            <label style="font-size:0.75rem; color:var(--text-muted); margin-bottom:6px; display:block;">📎 URL (.srs файл)</label>
             <input type="text" class="rule-url" placeholder="https://raw.githubusercontent.com/.../cn.srs" 
-                   value="${url}" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
+                   value="${url}" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text);">
         </div>
         
-        <div class="field" style="margin-bottom:10px">
-            <label style="font-size:0.75rem; color:var(--text-muted)">Тег (имя правила)</label>
+        <div class="field" style="margin-bottom:12px">
+            <label style="font-size:0.75rem; color:var(--text-muted); margin-bottom:6px; display:block;">🏷️ Тег (имя правила)</label>
             <input type="text" class="rule-tag" placeholder="geosite-cn или geoip-ru" 
-                   value="${tag}" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
+                   value="${tag}" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text);">
         </div>
         
-        <div class="field">
-            <label style="font-size:0.75rem; color:var(--text-muted)">Outbound (куда отправлять)</label>
-            <select class="rule-outbound" style="width:100%; font-family:'JetBrains Mono',monospace; font-size:13px; padding:10px;">
-                <option value="proxy-select" ${outbound === 'proxy-select' ? 'selected' : ''}>🌍 Proxy (через прокси)</option>
-                <option value="direct" ${outbound === 'direct' ? 'selected' : ''}>⬇️ Direct (напрямую)</option>
-                <option value="block" ${outbound === 'block' ? 'selected' : ''}>🚫 Block (заблокировать)</option>
-            </select>
+        <div class="field" style="margin-bottom:12px">
+            <label style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; display:block;">🎯 Стратегия (Outbound)</label>
+            <div class="outbound-selector" data-group="${groupId}" style="display:flex; gap:8px;">
+                <button type="button" class="outbound-option proxy ${outbound === 'proxy-select' ? 'active' : ''}" data-value="proxy-select" style="
+                    flex:1; padding:10px; border-radius:8px; border:1px solid var(--border); 
+                    background: var(--bg); color: var(--text-muted); font-weight:600;
+                    cursor: pointer; transition: all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px;
+                ">🌍 Прокси</button>
+                
+                <button type="button" class="outbound-option direct ${outbound === 'direct' ? 'active' : ''}" data-value="direct" style="
+                    flex:1; padding:10px; border-radius:8px; border:1px solid var(--border); 
+                    background: var(--bg); color: var(--text-muted); font-weight:600;
+                    cursor: pointer; transition: all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px;
+                ">⬇️ Напрямую</button>
+                
+                <button type="button" class="outbound-option block ${outbound === 'block' ? 'active' : ''}" data-value="block" style="
+                    flex:1; padding:10px; border-radius:8px; border:1px solid var(--border); 
+                    background: var(--bg); color: var(--text-muted); font-weight:600;
+                    cursor: pointer; transition: all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px;
+                ">🚫 Блок</button>
+            </div>
+            <input type="hidden" class="rule-outbound" value="${outbound}">
         </div>
         
         <button onclick="this.parentElement.remove()" 
-                style="margin-top:12px; width:100%; padding:10px; background:var(--surface); border:1px solid var(--accent3); color:var(--accent3); border-radius:8px; font-weight:600;">
-            ✕ Удалить это правило
+                style="margin-top:8px; width:100%; padding:10px; background:transparent; border:1px solid var(--accent3); color:var(--accent3); border-radius:8px; font-weight:600; cursor:pointer; transition:0.2s;">
+            ✕ Удалить правило
         </button>
     `;
+
+    // Добавляем интерактивность для красивых кнопок выбора outbound
+    const group = row.querySelector('.outbound-selector');
+    const hiddenInput = row.querySelector('.rule-outbound');
+    const options = group.querySelectorAll('.outbound-option');
+    
+    options.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Сбрасываем стили у всех кнопок в группе
+            options.forEach(b => {
+                b.style.background = 'var(--bg)';
+                b.style.color = 'var(--text-muted)';
+                b.style.borderColor = 'var(--border)';
+            });
+            
+            // Активируем выбранную
+            const value = btn.dataset.value;
+            if (value === 'proxy-select') {
+                btn.style.background = 'rgba(88, 166, 255, 0.15)';
+                btn.style.color = 'var(--accent)';
+                btn.style.borderColor = 'var(--accent)';
+            } else if (value === 'direct') {
+                btn.style.background = 'rgba(63, 185, 80, 0.15)';
+                btn.style.color = 'var(--accent2)';
+                btn.style.borderColor = 'var(--accent2)';
+            } else if (value === 'block') {
+                btn.style.background = 'rgba(247, 129, 102, 0.15)';
+                btn.style.color = 'var(--accent3)';
+                btn.style.borderColor = 'var(--accent3)';
+            }
+            
+            // Сохраняем значение в скрытое поле
+            hiddenInput.value = value;
+        });
+        
+        // Устанавливаем начальное состояние
+        if (btn.dataset.value === outbound) {
+            btn.click();
+        }
+    });
+
     container.appendChild(row);
 }
 
