@@ -1061,9 +1061,9 @@
 		
 		    <!-- НОВАЯ ОПЦИЯ -->
 		    <div class="field">
-		        <label>Совместимость с другим VPN <span class="badge" style="background:rgba(255,149,0,0.15);color:#ff9500">важно</span></label>
+		        <label>Совместимость с другим VPN</label>
 		        <div class="toggle-row">
-		            <label class="toggle"><input type="checkbox" id="vpnCompatibility" onchange="updateCompatibilityHint()"><span class="toggle-slider"></span></label>
+		            <label class="toggle"><input type="checkbox" id="vpnCompatibility"><span class="toggle-slider"></span></label>
 		            <span class="toggle-label">Включить, если уже работает другой VPN (решает "can't block xtables")</span>
 		        </div>
 		        <div class="hint" id="compatibilityHint" style="display:none;color:#ff9500">
@@ -1071,7 +1071,108 @@
 		        </div>
 		    </div>
 		</div>
-
+			<!-- MULTIPLEX & FRAGMENT SETTINGS -->
+			<div class="card full">
+			    <div class="card-title"><span class="dot" style="background:#ff9500"></span>Fragment · Шум · Mux</div>
+			    
+			    <!-- FRAGMENT -->
+			    <div class="field">
+			        <label>Фрагментация TLS <span class="badge" style="background:rgba(210,168,255,0.12);color:var(--accent4)">1.12+</span></label>
+			        <div class="toggle-row">
+			            <label class="toggle"><input type="checkbox" id="fragmentEnabled"><span class="toggle-slider"></span></label>
+			            <span class="toggle-label">Разбивать TLS handshake для обхода DPI</span>
+			        </div>
+			    </div>
+			    <div id="fragmentOpts" style="display:none">
+			        <div class="field">
+			            <div class="toggle-row">
+			                <label class="toggle"><input type="checkbox" id="recordFragment" checked><span class="toggle-slider"></span></label>
+			                <span class="toggle-label">Record Fragment (рекомендуется)</span>
+			            </div>
+			            <div class="hint">Разбить на несколько TLS записей — быстрее чем fragment</div>
+			        </div>
+			        <div class="field">
+			            <div class="toggle-row">
+			                <label class="toggle"><input type="checkbox" id="fragmentTLS"><span class="toggle-slider"></span></label>
+			                <span class="toggle-label">Fragment ClientHello</span>
+			            </div>
+			            <div class="hint">Медленнее, только для заблокированных серверов</div>
+			        </div>
+			        <div class="field" id="fragmentDelayField" style="display:none">
+			            <label>Fallback задержка</label>
+			            <input type="text" id="fragmentFallbackDelay" value="500ms" placeholder="500ms">
+			            <div class="hint">Например: 100ms, 500ms, 1s</div>
+			        </div>
+			    </div>
+			
+			    <div class="sep"></div>
+			
+			    <!-- ШУМ -->
+			    <div class="field">
+			        <label>Шум и маскировка</label>
+			        <div class="toggle-row">
+			            <label class="toggle"><input type="checkbox" id="paddingEnabled"><span class="toggle-slider"></span></label>
+			            <span class="toggle-label">Padding (случайные байты)</span>
+			        </div>
+			        <div class="hint">Заполняет пакеты случайными данными</div>
+			    </div>
+			    <div class="field">
+			        <div class="toggle-row">
+			            <label class="toggle"><input type="checkbox" id="brutalEnabled"><span class="toggle-slider"></span></label>
+			            <span class="toggle-label">TCP Brutal (агрессивная отправка)</span>
+			        </div>
+			        <div class="hint">Имитирует потоковое видео/игры</div>
+			    </div>
+			    <div id="brutalOpts" style="display:none">
+			        <div class="inline-row">
+			            <div class="field">
+			                <label>Upload (Mbps)</label>
+			                <input type="text" id="brutalUp" value="100" placeholder="100">
+			            </div>
+			            <div class="field">
+			                <label>Download (Mbps)</label>
+			                <input type="text" id="brutalDown" value="100" placeholder="100">
+			            </div>
+			        </div>
+			    </div>
+			
+			    <div class="sep"></div>
+			
+			    <!-- MULTIPLEX -->
+			    <div class="field">
+			        <label>Multiplex (Mux)</label>
+			        <div class="toggle-row">
+			            <label class="toggle"><input type="checkbox" id="muxEnabled"><span class="toggle-slider"></span></label>
+			            <span class="toggle-label">Объединять соединения через одно</span>
+			        </div>
+			    </div>
+			    <div id="muxOpts" style="display:none">
+			        <div class="field">
+			            <label>Протокол</label>
+			            <div class="select-row" id="muxProtocol">
+			                <button class="seg-btn active" data-v="smux" onclick="setMuxProtocol(this)">smux</button>
+			                <button class="seg-btn" data-v="yamux" onclick="setMuxProtocol(this)">yamux</button>
+			                <button class="seg-btn" data-v="h2mux" onclick="setMuxProtocol(this)">h2mux</button>
+			            </div>
+			            <div class="hint">smux — надёжный, yamux — быстрее, h2mux — HTTP/2</div>
+			        </div>
+			        <div class="inline-row">
+			            <div class="field">
+			                <label>Макс. соединений</label>
+			                <input type="text" id="muxMaxConnections" value="4" placeholder="4">
+			            </div>
+			            <div class="field">
+			                <label>Мин. потоков</label>
+			                <input type="text" id="muxMinStreams" value="4" placeholder="4">
+			            </div>
+			            <div class="field">
+			                <label>Макс. потоков</label>
+			                <input type="text" id="muxMaxStreams" value="0" placeholder="0 = безлимит">
+			            </div>
+			        </div>
+			    </div>
+			</div>
+			
     <!-- ACTIONS -->
     <div class="actions">
         <button class="btn btn-primary" onclick="generateFromProfiles()">
@@ -3056,14 +3157,68 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "route": routeObj,
         "experimental": experimentalObj
     };
-
-    // ПРИМЕНЯЕМ ОЧИЩЕННЫЙ МАССИВ
+    
+        // ПРИМЕНЯЕМ ОЧИЩЕННЫЙ МАССИВ
     if (cleanRuleSets.length > 0) {
         config.route.rule_set = cleanRuleSets;
     }
 
-    renderOutput(config);
+
+    // --- Fragment ---
+	const fragmentEnabled = document.getElementById('fragmentEnabled').checked;
+	if (fragmentEnabled) {
+	    const fragmentTLS = document.getElementById('fragmentTLS').checked;
+	    const recordFragment = document.getElementById('recordFragment').checked;
+	    const fallbackDelay = (document.getElementById('fragmentFallbackDelay').value || '500ms').trim();
+
+	    config.outbounds.forEach(o => {
+	        const skip = ['direct','block','selector','urltest','dns'];
+	        if (skip.includes(o.type)) return;
+	        if (!o.tls?.enabled) return;
+	        // Только true-значения — false никогда не пишем в конфиг
+	        if (recordFragment) o.tls.record_fragment = true;
+	        if (fragmentTLS) {
+	            o.tls.fragment = true;
+	            o.tls.fragment_fallback_delay = fallbackDelay;
+	        }
+	    });
+	}
+
+	// --- Multiplex / Padding / Brutal ---
+	const muxEnabled = document.getElementById('muxEnabled').checked;
+	const paddingEnabled = document.getElementById('paddingEnabled').checked;
+	const brutalEnabled = document.getElementById('brutalEnabled').checked;
+
+	if (muxEnabled || paddingEnabled || brutalEnabled) {
+	    const muxProtocolEl = document.getElementById('muxProtocol').querySelector('.seg-btn.active');
+	    const muxProtocol = muxProtocolEl ? muxProtocolEl.dataset.v : 'smux';
+	    const muxMaxConn = parseInt(document.getElementById('muxMaxConnections').value) || 4;
+	    const muxMinStreams = parseInt(document.getElementById('muxMinStreams').value) || 4;
+	    const muxMaxStreams = parseInt(document.getElementById('muxMaxStreams').value) || 0;
+
+	    config.outbounds.forEach(o => {
+	        const skip = ['direct','block','selector','urltest','dns'];
+	        if (skip.includes(o.type)) return;
+
+	        const muxObj = { enabled: true, protocol: muxProtocol };
+	        if (muxEnabled) {
+	            muxObj.max_connections = muxMaxConn;
+	            muxObj.min_streams = muxMinStreams;
+	            if (muxMaxStreams > 0) muxObj.max_streams = muxMaxStreams; // 0 не пишем
+	        }
+	        if (paddingEnabled) muxObj.padding = true; // false не пишем
+	        if (brutalEnabled) { // пустой объект не пишем
+	            const brutalUp = parseInt(document.getElementById('brutalUp').value) || 100;
+	            const brutalDown = parseInt(document.getElementById('brutalDown').value) || 100;
+	            muxObj.brutal = { enabled: true, up_mbps: brutalUp, down_mbps: brutalDown };
+	        }
+	        o.multiplex = muxObj;
+	    });
+	}
+	
+	renderOutput(config);
 }
+	
 
 // Функция для dns-remote с правильным порядком: type → tag → (потом detour, domain_resolver) → server → path
 function buildDnsServer14(tag, addr) {
@@ -3493,10 +3648,6 @@ function outboundToNaive(ob) {
     return `naive+${proto}://${auth}@${ob.server}:${ob.server_port}${q?'?'+q:''}#${encodeURIComponent(ob.tag)}`;
 }
 
-function updateCompatibilityHint() {
-    const enabled = document.getElementById('vpnCompatibility').checked;
-    document.getElementById('compatibilityHint').style.display = enabled ? 'block' : 'none';
-}
 
 // Создание новой строки Rule Set
 function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
@@ -3668,6 +3819,38 @@ function getRuleSetsFromUI() {
         }
     });
     return rules;
+}
+
+// Привязка событий для Mux и Fragment
+document.getElementById('muxEnabled').addEventListener('change', function() {
+    document.getElementById('muxOpts').style.display = this.checked ? 'block' : 'none';
+});
+document.getElementById('fragmentEnabled').addEventListener('change', function() {
+    document.getElementById('fragmentOpts').style.display = this.checked ? 'block' : 'none';
+});
+
+function setMuxProtocol(btn) {
+    document.getElementById('muxProtocol').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+// Привязка событий для Fragment, Шум, Mux
+document.getElementById('fragmentEnabled').addEventListener('change', function() {
+    document.getElementById('fragmentOpts').style.display = this.checked ? 'block' : 'none';
+});
+document.getElementById('fragmentTLS').addEventListener('change', function() {
+    document.getElementById('fragmentDelayField').style.display = this.checked ? 'block' : 'none';
+});
+document.getElementById('muxEnabled').addEventListener('change', function() {
+    document.getElementById('muxOpts').style.display = this.checked ? 'block' : 'none';
+});
+document.getElementById('brutalEnabled').addEventListener('change', function() {
+    document.getElementById('brutalOpts').style.display = this.checked ? 'block' : 'none';
+});
+
+function setMuxProtocol(btn) {
+    document.getElementById('muxProtocol').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
 }
 
 </script>
