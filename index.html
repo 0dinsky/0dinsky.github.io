@@ -1027,7 +1027,24 @@
         <!-- TUN SETTINGS -->
 		<div class="card">
 		    <div class="card-title"><span class="dot red"></span>TUN настройки</div>
-		    
+
+		    <div class="field">
+		        <label>Целевая платформа</label>
+		        <div class="toggle-row" style="gap:8px;flex-wrap:wrap">
+		            <span id="platformBadge" style="font-size:14px;font-weight:600;padding:4px 10px;border-radius:8px;background:var(--surface2);cursor:pointer" onclick="togglePlatformSelector()">🤖 Android</span>
+		            <button class="seg-btn" style="font-size:12px;padding:4px 10px" onclick="togglePlatformSelector()">изменить</button>
+		        </div>
+		        <div id="platformSelector" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px">
+		            <button class="seg-btn platform-btn active" data-p="android" onclick="setPlatform('android')">🤖 Android</button>
+		            <button class="seg-btn platform-btn" data-p="ios" onclick="setPlatform('ios')">🍎 iOS</button>
+		            <button class="seg-btn platform-btn" data-p="windows" onclick="setPlatform('windows')">🪟 Windows</button>
+		            <button class="seg-btn platform-btn" data-p="macos" onclick="setPlatform('macos')">🍏 macOS</button>
+		            <button class="seg-btn platform-btn" data-p="linux" onclick="setPlatform('linux')">🐧 Linux</button>
+		            <button class="seg-btn platform-btn" data-p="other" onclick="setPlatform('other')">❓ Другая</button>
+		        </div>
+		        <div class="hint" id="platformHint">Влияет на platform.http_proxy и override_android_vpn</div>
+		    </div>
+
 		    <div class="field">
 		        <label>Stack (тип ядра сети)</label>
 		        <div class="select-row" id="stackType">
@@ -1336,7 +1353,44 @@ const state = {
     mtu: '1400',
     mixedListen: '127.0.0.1',
     selectorMode: 'selector',
+    targetPlatform: 'android',
 };
+
+function detectPlatform() {
+    const ua = navigator.userAgent || '';
+    if (/android/i.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/i.test(ua)) return 'ios';
+    if (/windows/i.test(ua)) return 'windows';
+    if (/macintosh|mac os x/i.test(ua)) return 'macos';
+    if (/linux/i.test(ua)) return 'linux';
+    return 'other';
+}
+
+const PLATFORM_LABELS = {
+    android: '🤖 Android',
+    ios: '🍎 iOS',
+    windows: '🪟 Windows',
+    macos: '🍏 macOS',
+    linux: '🐧 Linux',
+    other: '❓ Другая',
+};
+
+const ALL_PLATFORMS = ['android','ios','windows','macos','linux','other'];
+
+function setPlatform(p) {
+    state.targetPlatform = p;
+    document.getElementById('platformBadge').textContent = PLATFORM_LABELS[p];
+    const sel = document.getElementById('platformSelector');
+    if (sel) sel.style.display = 'none';
+    document.querySelectorAll('.platform-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.p === p);
+    });
+}
+
+function togglePlatformSelector() {
+    const sel = document.getElementById('platformSelector');
+    sel.style.display = sel.style.display === 'none' ? 'flex' : 'none';
+}
 
 const stackHints = {
     gvisor: 'gVisor — безопаснее, меньше утечек, выше нагрузка на CPU',
@@ -2217,7 +2271,11 @@ function _parseVless(url, params, tag, r) {
     const out = { "type": "vless", "tag": tag, "server": url.hostname, "server_port": parseInt(url.port),
                   "uuid": url.username, "domain_resolver": r };
     const tls = buildTls(params, url.hostname); if (tls) out.tls = tls;
-    if (params.get('flow')) out.flow = params.get('flow');
+    if (params.get('flow')) {
+        // Нормализуем flow: xtls-rprx-vision-udp443 → xtls-rprx-vision (sing-box не поддерживает суффикс -udp443)
+        const rawFlow = params.get('flow');
+        out.flow = rawFlow.replace(/-udp443$/, '');
+    }
     const tr = buildTransport(params);
     if (tr) {
         if (tr.type === 'grpc' && !tr.service_name) {
@@ -3048,7 +3106,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "outbounds": proxyTags, "default": proxyTags[0] || "direct"
     };
 
-   // ─── ROUTE RULES (ТЕПЕРЬ ПРАВИЛЬНО С ВЫБОРОМ OUTBOUND) ─────────────────
+    // ─── ROUTE RULES (ТЕПЕРЬ ПРАВИЛЬНО С ВЫБОРОМ OUTBOUND) ─────────────────
 	const routeRules = [];
 	
 	// 1. ПРАВИЛА ДЛЯ ВСЕХ RULE_SET'ОВ ИЗ UI С УЧЁТОМ ВЫБРАННОГО OUTBOUND
@@ -3110,13 +3168,17 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     if (directStrategy) dnsObj.strategy = directStrategy;
     if (useOptimistic) dnsObj.optimistic = true;
 
+    const isAndroid = state.targetPlatform === 'android';
     const tunInbound = {
         "type": "tun", "tag": "tun-in", "mtu": mtu,
         "address": ["172.19.0.1/28", "fdfe:dcba:9876::1/126"],
         "auto_route": true, "strict_route": false, "auto_redirect": false,
         "endpoint_independent_nat": true, "stack": state.stack,
-        "platform": { "http_proxy": { "enabled": false } }
     };
+    // platform.http_proxy только для Android (и iOS где актуально)
+    if (isAndroid) {
+        tunInbound.platform = { "http_proxy": { "enabled": false } };
+    }
     if (excludePrivate) {
         tunInbound.route_exclude_address = ["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","224.0.0.0/4","255.255.255.255/32"];
     }
@@ -3125,10 +3187,13 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "rules": routeRules,
         "final": "proxy-select",
         "auto_detect_interface": true,
-        "override_android_vpn": true,
         "default_domain_resolver": { "server": "dns-local", "rewrite_ttl": 60 },
         "default_http_client": "default-http-client"
     };
+    // override_android_vpn только для Android
+    if (isAndroid) {
+        routeObj.override_android_vpn = true;
+    }
     
     if (ruleSets && ruleSets.length > 0) {
         routeObj.rule_set = ruleSets;
@@ -3163,56 +3228,55 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         config.route.rule_set = cleanRuleSets;
     }
 
-
     // --- Fragment ---
 	const fragmentEnabled = document.getElementById('fragmentEnabled').checked;
 	if (fragmentEnabled) {
 	    const fragmentTLS = document.getElementById('fragmentTLS').checked;
 	    const recordFragment = document.getElementById('recordFragment').checked;
-	    const fallbackDelay = (document.getElementById('fragmentFallbackDelay').value || '500ms').trim();
-
+	    const fallbackDelay = document.getElementById('fragmentFallbackDelay').value || '500ms';
+	    
 	    config.outbounds.forEach(o => {
-	        const skip = ['direct','block','selector','urltest','dns'];
-	        if (skip.includes(o.type)) return;
-	        if (!o.tls?.enabled) return;
-	        // Только true-значения — false никогда не пишем в конфиг
-	        if (recordFragment) o.tls.record_fragment = true;
-	        if (fragmentTLS) {
-	            o.tls.fragment = true;
-	            o.tls.fragment_fallback_delay = fallbackDelay;
+	        if (o.type !== 'direct' && o.type !== 'block' && o.type !== 'selector') {
+	            if (!o.tls) o.tls = { enabled: true };
+	            o.tls.fragment = fragmentTLS;
+	            o.tls.record_fragment = recordFragment;
+	            if (fragmentTLS) {
+	                o.tls.fragment_fallback_delay = fallbackDelay;
+	            }
 	        }
 	    });
 	}
-
-	// --- Multiplex / Padding / Brutal ---
+	
+	// --- Multiplex + Шум ---
 	const muxEnabled = document.getElementById('muxEnabled').checked;
 	const paddingEnabled = document.getElementById('paddingEnabled').checked;
 	const brutalEnabled = document.getElementById('brutalEnabled').checked;
-
+	
 	if (muxEnabled || paddingEnabled || brutalEnabled) {
 	    const muxProtocolEl = document.getElementById('muxProtocol').querySelector('.seg-btn.active');
 	    const muxProtocol = muxProtocolEl ? muxProtocolEl.dataset.v : 'smux';
 	    const muxMaxConn = parseInt(document.getElementById('muxMaxConnections').value) || 4;
 	    const muxMinStreams = parseInt(document.getElementById('muxMinStreams').value) || 4;
 	    const muxMaxStreams = parseInt(document.getElementById('muxMaxStreams').value) || 0;
-
+	    const brutalUp = parseInt(document.getElementById('brutalUp').value) || 100;
+	    const brutalDown = parseInt(document.getElementById('brutalDown').value) || 100;
+	    
 	    config.outbounds.forEach(o => {
-	        const skip = ['direct','block','selector','urltest','dns'];
-	        if (skip.includes(o.type)) return;
-
-	        const muxObj = { enabled: true, protocol: muxProtocol };
-	        if (muxEnabled) {
-	            muxObj.max_connections = muxMaxConn;
-	            muxObj.min_streams = muxMinStreams;
-	            if (muxMaxStreams > 0) muxObj.max_streams = muxMaxStreams; // 0 не пишем
+	        if (o.type !== 'direct' && o.type !== 'block' && o.type !== 'selector') {
+	            o.multiplex = {
+	                enabled: true,
+	                protocol: muxProtocol,
+	                max_connections: muxMaxConn,
+	                min_streams: muxMinStreams,
+	                max_streams: muxMaxStreams,
+	                padding: paddingEnabled,
+	                brutal: brutalEnabled ? {
+	                    enabled: true,
+	                    up_mbps: brutalUp,
+	                    down_mbps: brutalDown
+	                } : {}
+	            };
 	        }
-	        if (paddingEnabled) muxObj.padding = true; // false не пишем
-	        if (brutalEnabled) { // пустой объект не пишем
-	            const brutalUp = parseInt(document.getElementById('brutalUp').value) || 100;
-	            const brutalDown = parseInt(document.getElementById('brutalDown').value) || 100;
-	            muxObj.brutal = { enabled: true, up_mbps: brutalUp, down_mbps: brutalDown };
-	        }
-	        o.multiplex = muxObj;
 	    });
 	}
 	
@@ -3609,6 +3673,15 @@ function onSecurityChange() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Определяем платформу и инициализируем UI
+    const detectedPlatform = detectPlatform();
+    state.targetPlatform = detectedPlatform;
+    const badge = document.getElementById('platformBadge');
+    if (badge) badge.textContent = PLATFORM_LABELS[detectedPlatform] || detectedPlatform;
+    document.querySelectorAll('.platform-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.p === detectedPlatform);
+    });
+
     // Слушатель изменения типа протокола
     const typeSelect = document.getElementById('editType');
     if (typeSelect) {
