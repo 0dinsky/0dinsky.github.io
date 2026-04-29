@@ -3106,7 +3106,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "outbounds": proxyTags, "default": proxyTags[0] || "direct"
     };
 
-    // ─── ROUTE RULES (ТЕПЕРЬ ПРАВИЛЬНО С ВЫБОРОМ OUTBOUND) ─────────────────
+   // ─── ROUTE RULES (ТЕПЕРЬ ПРАВИЛЬНО С ВЫБОРОМ OUTBOUND) ─────────────────
 	const routeRules = [];
 	
 	// 1. ПРАВИЛА ДЛЯ ВСЕХ RULE_SET'ОВ ИЗ UI С УЧЁТОМ ВЫБРАННОГО OUTBOUND
