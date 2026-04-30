@@ -2288,7 +2288,7 @@ function _parseVless(url, params, tag, r) {
 
 function _parseVmess(urlStr, r) {
     try {
-        const json = JSON.parse(atob(urlStr.replace(/^vmess(-aead)?:\/\//, '')));
+        const json = JSON.parse(atob(urlStr.replace(/^vmess(-aead)?:\/\//, '').replace(/#.*$/, '')));
         const out = { "type": "vmess", "tag": json.ps || `vmess-${Math.floor(Math.random()*1000)}`,
                       "server": json.add, "server_port": parseInt(json.port), "uuid": json.id,
                       "security": json.scy || "auto", "alter_id": parseInt(json.aid) || 0,
@@ -2411,7 +2411,6 @@ function _parseNaive(url, params, tag, r) {
              "server": url.hostname, "server_port": parseInt(url.port) || 443,
              "username": decodeURIComponent(url.username) || "",
              "password": decodeURIComponent(url.password) || "",
-             "network": proto === 'quic' ? "quic" : "tcp",
              "tls": { "enabled": true, "server_name": params.get('sni') || url.hostname },
              "domain_resolver": r };
 }
@@ -3560,12 +3559,6 @@ function saveProfileEdit() {
         if (methodVal) ob.method = methodVal;
     }
     
-    // Naive network (из транспорта)
-    if (newType === 'naive') {
-        const trType = document.getElementById('editTransport').value;
-        ob.network = (trType === 'ws' || trType === 'http' || trType === 'httpupgrade') ? 'tcp' : 
-                     (trType === 'quic' ? 'quic' : 'tcp');
-    }
     
     // Шифрование (TLS/Reality)
     const security = document.getElementById('editSecurity').value;
