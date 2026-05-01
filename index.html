@@ -3025,7 +3025,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     if (directDnsAddr) {
         const srv = buildDnsServer14("dns-direct", directDnsAddr);
         if (needsDomainResolver(directDnsAddr)) {
-            srv.domain_resolver = { "server": "dns-local", "strategy": directStrategy };
+            srv.domain_resolver = "dns-local";
         }
         dnsServers.push(srv);
     } else {
@@ -3044,7 +3044,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
                 if (u.port) srv.server_port = parseInt(u.port);
                 if (u.pathname && u.pathname !== '/') srv.path = u.pathname;
                 if (!isIpAddress(u.hostname)) {
-                    srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
+                    srv.domain_resolver = "dns-direct";
                 }
             } catch(e) {
                 srv = { "type": "https", "tag": "dns-remote", "detour": "proxy-select", "server": addr };
@@ -3058,7 +3058,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
             srv = { "type": "tls", "tag": "dns-remote", "detour": "proxy-select", "server": host };
             if (port) srv.server_port = port;
             if (!isIpAddress(host)) {
-                srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
+                srv.domain_resolver = "dns-direct";
             }
         } else {
             const colonIdx = addr.lastIndexOf(':');
@@ -3068,7 +3068,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
             srv = { "type": "udp", "tag": "dns-remote", "detour": "proxy-select", "server": host };
             if (port) srv.server_port = port;
             if (!isIpAddress(host)) {
-                srv.domain_resolver = { "server": "dns-direct", "strategy": proxyStrategy };
+                srv.domain_resolver = "dns-direct";
             }
         }
         dnsServers.push(srv);
@@ -3085,16 +3085,16 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     // DNS Rules
     const dnsRules = [];
     if (bootstrapDomains.length > 0) {
-        dnsRules.push({ "domain": [...new Set(bootstrapDomains)], "server": "dns-direct" });
+        dnsRules.push({ "action": "route", "domain": [...new Set(bootstrapDomains)], "server": "dns-direct" });
     }
     if (bypassDomains.length > 0) {
-        dnsRules.push({ "domain_suffix": bypassDomains, "server": "dns-direct" });
+        dnsRules.push({ "action": "route", "domain_suffix": bypassDomains, "server": "dns-direct" });
     }
     if (proxyForceDomains.length > 0) {
-        dnsRules.push({ "domain_suffix": proxyForceDomains, "server": "dns-remote" });
+        dnsRules.push({ "action": "route", "domain_suffix": proxyForceDomains, "server": "dns-remote" });
     }
     if (useFakeip) {
-        dnsRules.push({ "query_type": ["A", "AAAA"], "server": "dns-fake" });
+        dnsRules.push({ "action": "route", "query_type": ["A", "AAAA"], "server": "dns-fake" });
     }
 
     const mtu = state.mtu === 'custom' ? parseInt(document.getElementById('mtuVal').value) || 1400 : parseInt(state.mtu);
@@ -3262,12 +3262,10 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 	    
 	    config.outbounds.forEach(o => {
 	        if (o.type !== 'direct' && o.type !== 'block' && o.type !== 'selector') {
-	            o.multiplex = {
+	            // max_streams конфликтует с max_connections и min_streams (документация sing-box)
+	            const mux = {
 	                enabled: muxEnabled,
 	                protocol: muxProtocol,
-	                max_connections: muxMaxConn,
-	                min_streams: muxMinStreams,
-	                max_streams: muxMaxStreams,
 	                padding: paddingEnabled,
 	                brutal: brutalEnabled ? {
 	                    enabled: true,
@@ -3275,6 +3273,15 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 	                    down_mbps: brutalDown
 	                } : {}
 	            };
+	            if (muxMaxStreams > 0) {
+	                // max_streams — режим без max_connections/min_streams
+	                mux.max_streams = muxMaxStreams;
+	            } else {
+	                // режим по умолчанию: max_connections + min_streams
+	                mux.max_connections = muxMaxConn;
+	                mux.min_streams = muxMinStreams;
+	            }
+	            o.multiplex = mux;
 	        }
 	    });
 	}
@@ -3716,26 +3723,6 @@ function outboundToNaive(ob) {
 
 
 // Создание новой строки Rule Set
-function addRuleSetRow(url = '', tag = '', detour = 'proxy-select') {
-    const container = document.getElementById('ruleSetsList');
-    const row = document.createElement('div');
-    row.className = 'rule-set-row';
-    row.style = `display: grid; grid-template-columns: 1fr 120px 100px 40px; gap: 8px; align-items: center; 
-                 background: var(--surface2); padding: 10px; border-radius: 8px; border: 1px solid var(--border);`;
-
-    row.innerHTML = `
-        <input type="text" class="rule-url" placeholder="https://.../file.srs" value="${url}" style="width:100%; font-family: 'JetBrains Mono', monospace; font-size: 12px;">
-        <input type="text" class="rule-tag" placeholder="Тег (например: geosite-cn)" value="${tag}" style="width:100%; font-family: 'JetBrains Mono', monospace; font-size: 12px;">
-        <select class="rule-detour" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
-            <option value="proxy-select" ${detour === 'proxy-select' ? 'selected' : ''}>Proxy</option>
-            <option value="direct" ${detour === 'direct' ? 'selected' : ''}>Direct</option>
-            <option value="block" ${detour === 'block' ? 'selected' : ''}>Block</option>
-        </select>
-        <button onclick="this.parentElement.remove()" style="background:none; border:none; color:var(--accent3); font-size:18px; cursor:pointer; padding:0;">✕</button>
-    `;
-    container.appendChild(row);
-}
-
 // Быстрые пресеты
 function addPopularRuleSetsQuick() {
     const presets = [
@@ -3887,28 +3874,15 @@ function getRuleSetsFromUI() {
     return rules;
 }
 
-// Привязка событий для Mux и Fragment
+// Привязка событий для Fragment, Mux, Brutal
 document.getElementById('muxEnabled').addEventListener('change', function() {
     document.getElementById('muxOpts').style.display = this.checked ? 'block' : 'none';
 });
-document.getElementById('fragmentEnabled').addEventListener('change', function() {
-    document.getElementById('fragmentOpts').style.display = this.checked ? 'block' : 'none';
-});
-
-function setMuxProtocol(btn) {
-    document.getElementById('muxProtocol').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-}
-
-// Привязка событий для Fragment, Шум, Mux
 document.getElementById('fragmentEnabled').addEventListener('change', function() {
     document.getElementById('fragmentOpts').style.display = this.checked ? 'block' : 'none';
 });
 document.getElementById('fragmentTLS').addEventListener('change', function() {
     document.getElementById('fragmentDelayField').style.display = this.checked ? 'block' : 'none';
-});
-document.getElementById('muxEnabled').addEventListener('change', function() {
-    document.getElementById('muxOpts').style.display = this.checked ? 'block' : 'none';
 });
 document.getElementById('brutalEnabled').addEventListener('change', function() {
     document.getElementById('brutalOpts').style.display = this.checked ? 'block' : 'none';
