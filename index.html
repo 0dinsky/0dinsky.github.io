@@ -3263,7 +3263,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 	    config.outbounds.forEach(o => {
 	        if (o.type !== 'direct' && o.type !== 'block' && o.type !== 'selector') {
 	            o.multiplex = {
-	                enabled: true,
+	                enabled: muxEnabled,
 	                protocol: muxProtocol,
 	                max_connections: muxMaxConn,
 	                min_streams: muxMinStreams,
