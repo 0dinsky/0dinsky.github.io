@@ -3213,7 +3213,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     });
 
     const config = {
-        "log": { "level": "info", "timestamp": true },
+        "log": { "disabled": true, "level": "error" },
         "http_clients": httpClients,
         "dns": dnsObj,
         "inbounds": [tunInbound],
