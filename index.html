@@ -1114,11 +1114,11 @@
 		    <div class="field">
 		        <label>Stack (тип ядра сети)</label>
 		        <div class="select-row" id="stackType">
-		            <button class="seg-btn active" data-v="gvisor" onclick="setStack(this)">gVisor</button>
-		            <button class="seg-btn" data-v="mixed" onclick="setStack(this)">mixed</button>
+		            <button class="seg-btn" data-v="gvisor" onclick="setStack(this)">gVisor</button>
+		            <button class="seg-btn active" data-v="mixed" onclick="setStack(this)">mixed</button>
 		            <button class="seg-btn" data-v="system" onclick="setStack(this)">system</button>
 		        </div>
-		        <div class="hint" id="stackHint">gVisor — безопаснее, меньше утечек, выше нагрузка на CPU</div>
+		        <div class="hint" id="stackHint">mixed — UDP через system, TCP через gVisor</div>
 		    </div>
 		
 		    <div class="field">
@@ -1415,7 +1415,7 @@ const state = {
     proxyDnsType: 'custom',
     proxyDnsAddr: 'https://dns.google/dns-query',
     proxyDnsStrategy: 'prefer_ipv6',
-    stack: 'gvisor',
+    stack: 'mixed',
     mtu: '1400',
     mixedListen: '127.0.0.1',
     selectorMode: 'selector',
