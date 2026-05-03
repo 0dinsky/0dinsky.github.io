@@ -114,6 +114,49 @@
         textarea#bypassDomains { height: 80px; }
         textarea#proxyDomains  { height: 80px; }
 
+        /* ── Domain Manager tabs ── */
+        .domain-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .domain-tab {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 6px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text-muted);
+            font-family: 'Syne', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .domain-tab:hover { border-color: var(--accent); color: var(--text); }
+        .domain-tab.active-bypass  { border-color: var(--accent2); color: var(--accent2); background: color-mix(in srgb, var(--accent2) 10%, transparent); }
+        .domain-tab.active-proxy   { border-color: var(--accent);  color: var(--accent);  background: color-mix(in srgb, var(--accent)  10%, transparent); }
+        .domain-tab.active-block   { border-color: var(--accent3); color: var(--accent3); background: color-mix(in srgb, var(--accent3) 10%, transparent); }
+        .domain-count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            background: var(--surface2);
+            color: var(--text-muted);
+            min-width: 20px;
+            text-align: center;
+        }
+        .domain-tab.active-bypass .domain-count { background: color-mix(in srgb, var(--accent2) 20%, transparent); color: var(--accent2); }
+        .domain-tab.active-proxy  .domain-count { background: color-mix(in srgb, var(--accent)  20%, transparent); color: var(--accent);  }
+        .domain-tab.active-block  .domain-count { background: color-mix(in srgb, var(--accent3) 20%, transparent); color: var(--accent3); }
+        .domain-panel { display: none; }
+        .domain-panel.active { display: block; }
+
         label {
             display: block;
             font-size: 0.78rem;
@@ -920,18 +963,40 @@
 
     <div class="grid">
 
-        <!-- BYPASS DOMAINS -->
-        <div class="card">
-            <div class="card-title"><span class="dot green"></span>Домены в обход прокси</div>
-            <textarea id="bypassDomains" placeholder="example.com&#10;mybank.ru&#10;work-vpn.net&#10;local.service"></textarea>
-            <div class="hint">Каждый домен с новой строки. Все субдомены включаются автоматически.</div>
-        </div>
-
-        <!-- PROXY DOMAINS -->
-        <div class="card">
-            <div class="card-title"><span class="dot"></span>Домены всегда через прокси</div>
-            <textarea id="proxyDomains" placeholder="google.com&#10;youtube.com&#10;twitter.com&#10;openai.com"></textarea>
-            <div class="hint">Каждый домен с новой строки. Добавляются в route.rules до остальных правил.</div>
+        <!-- DOMAIN MANAGER -->
+        <div class="card full">
+            <div class="card-title" style="margin-bottom:14px">
+                <span class="dot"></span>Управление доменами
+            </div>
+            <div class="domain-tabs">
+                <button class="domain-tab active-bypass" id="tab-bypass" onclick="switchDomainTab('bypass')">
+                    <span style="width:7px;height:7px;border-radius:50%;background:var(--accent2);flex-shrink:0"></span>
+                    Напрямую
+                    <span class="domain-count" id="bypassCount">0</span>
+                </button>
+                <button class="domain-tab" id="tab-proxy" onclick="switchDomainTab('proxy')">
+                    <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0"></span>
+                    Прокси
+                    <span class="domain-count" id="proxyCount">0</span>
+                </button>
+                <button class="domain-tab" id="tab-block" onclick="switchDomainTab('block')">
+                    <span style="width:7px;height:7px;border-radius:50%;background:var(--accent3);flex-shrink:0"></span>
+                    Блок
+                    <span class="domain-count" id="blockCount">0</span>
+                </button>
+            </div>
+            <div class="domain-panel active" id="panel-bypass">
+                <textarea id="bypassDomains" placeholder="example.com&#10;mybank.ru&#10;work-vpn.net&#10;local.service" oninput="updateDomainCount('bypass')"></textarea>
+                <div class="hint">Субдомены включаются автоматически. route.rules → <code>outbound: direct</code>, DNS → <code>server: dns-direct</code>.</div>
+            </div>
+            <div class="domain-panel" id="panel-proxy">
+                <textarea id="proxyDomains" placeholder="google.com&#10;youtube.com&#10;twitter.com&#10;openai.com" oninput="updateDomainCount('proxy')"></textarea>
+                <div class="hint">Принудительно через прокси. route.rules → <code>outbound: proxy-select</code>, DNS → <code>server: dns-remote</code>.</div>
+            </div>
+            <div class="domain-panel" id="panel-block">
+                <textarea id="blockDomains" placeholder="ads.example.com&#10;tracker.net&#10;.doubleclick.net" oninput="updateDomainCount('block')"></textarea>
+                <div class="hint">DNS-запросы отклоняются (<code>action: reject</code>), трафик → <code>action: reject</code>. Поддерживаются суффиксы вида <code>.example.com</code>.</div>
+            </div>
         </div>
 
         <!-- RULE SETS - УДОБНЫЙ ДЛЯ ТЕЛЕФОНА -->
@@ -1404,6 +1469,29 @@ const stackHints = {
 function updateFakeipFieldVisibility() {
     const enabled = document.getElementById('fakeipEnabled').checked;
     document.getElementById('fakeipRangesRow').style.display = enabled ? 'block' : 'none';
+}
+
+// ── Domain Manager ──────────────────────────────────────────────────────────
+let activeDomainTab = 'bypass';
+
+function switchDomainTab(tab) {
+    activeDomainTab = tab;
+    ['bypass','proxy','block'].forEach(t => {
+        document.getElementById('panel-' + t).classList.toggle('active', t === tab);
+        const btn = document.getElementById('tab-' + t);
+        btn.className = 'domain-tab' + (t === tab ? ' active-' + t : '');
+    });
+}
+
+function updateDomainCount(tab) {
+    const ids = { bypass: 'bypassDomains', proxy: 'proxyDomains', block: 'blockDomains' };
+    const val = document.getElementById(ids[tab]).value.trim();
+    const count = val ? val.split(/[\n,]+/).map(d => d.trim()).filter(Boolean).length : 0;
+    document.getElementById(tab + 'Count').textContent = count || '0';
+}
+
+function initDomainCounts() {
+    ['bypass','proxy','block'].forEach(updateDomainCount);
 }
 
 function setDnsType(which, btn) {
@@ -3004,6 +3092,8 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     const bypassDomains = rawDomains ? rawDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean) : [];
     const rawProxyDomains = document.getElementById('proxyDomains').value.trim();
     const proxyForceDomains = rawProxyDomains ? rawProxyDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean) : [];
+    const rawBlockDomains = document.getElementById('blockDomains').value.trim();
+    const blockDomains = rawBlockDomains ? rawBlockDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean) : [];
 
     const directDnsAddr = getDnsAddr('direct');
     const proxyDnsAddr = getDnsAddr('proxy');
@@ -3087,6 +3177,10 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     if (bootstrapDomains.length > 0) {
         dnsRules.push({ "action": "route", "domain": [...new Set(bootstrapDomains)], "server": "dns-direct" });
     }
+    // Блокировка доменов: DNS reject — REFUSED (согласно документации action: "reject")
+    if (blockDomains.length > 0) {
+        dnsRules.push({ "action": "reject", "domain_suffix": blockDomains });
+    }
     if (bypassDomains.length > 0) {
         dnsRules.push({ "action": "route", "domain_suffix": bypassDomains, "server": "dns-direct" });
     }
@@ -3108,7 +3202,18 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
    // ─── ROUTE RULES (ТЕПЕРЬ ПРАВИЛЬНО С ВЫБОРОМ OUTBOUND) ─────────────────
 	const routeRules = [];
 	
-	// 1. ПРАВИЛА ДЛЯ ВСЕХ RULE_SET'ОВ ИЗ UI С УЧЁТОМ ВЫБРАННОГО OUTBOUND
+	// 1. Sniff — должен идти первым по документации
+	routeRules.push({ "action": "sniff" });
+	
+	// 2. Hijack DNS
+	routeRules.push({ "port": 53, "action": "hijack-dns" });
+
+	// 3. Блокировка доменов — до всех остальных правил (action: reject, согласно документации)
+	if (blockDomains.length > 0) {
+	    routeRules.push({ "action": "reject", "domain_suffix": blockDomains });
+	}
+	
+	// 4. ПРАВИЛА ДЛЯ ВСЕХ RULE_SET'ОВ ИЗ UI С УЧЁТОМ ВЫБРАННОГО OUTBOUND
 	for (const rs of ruleSets) {
 	    const outboundTarget = rs._outbound || 'proxy-select'; // proxy-select, direct или block
 	    routeRules.push({
@@ -3117,39 +3222,24 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 	    });
 	}
 	
-	// 2. Sniffing
-	routeRules.push({ "action": "sniff" });
-	
-	// 3. Hijack DNS
-	routeRules.push({ "port": 53, "action": "hijack-dns" });
-	
-	// 4. Принудительные прокси-домены (если есть)
+	// 5. Принудительные прокси-домены (если есть)
 	if (proxyForceDomains.length > 0) {
 	    routeRules.push({ "domain_suffix": proxyForceDomains, "outbound": "proxy-select" });
 	}
-	
-	// 5. Приватные IP — напрямую
-	routeRules.push({
-	    "ip_cidr": [
-	        "224.0.0.0/3", "172.16.0.0/12", "127.0.0.0/8",
-	        "10.0.0.0/8", "192.168.0.0/16", "169.254.0.0/16",
-	        "::1/128", "fc00::/7", "fe80::/10"
-	    ],
-	    "outbound": "direct"
-	});
 	
 	// 6. bypassDomains (если есть) — напрямую
 	if (bypassDomains.length > 0) {
 	    routeRules.push({ "domain_suffix": bypassDomains, "outbound": "direct" });
 	}
 	
-	// 7. Весь остальной трафик из TUN — через прокси
-	routeRules.push({ "inbound": "tun-in", "outbound": "proxy-select" });
+	// 7. Приватные IP — напрямую (ip_is_private покрывает все RFC-1918 диапазоны)
 	routeRules.push({ "ip_is_private": true, "outbound": "direct" });
 	
-	// 8. Запрещаем мультикаст
+	// 8. Весь остальной трафик из TUN — через прокси
+	routeRules.push({ "inbound": "tun-in", "outbound": "proxy-select" });
+	
+	// 9. Запрещаем мультикаст
 	routeRules.push({
-	    "source_ip_cidr": ["224.0.0.0/3", "ff00::/8"],
 	    "ip_cidr": ["224.0.0.0/3", "ff00::/8"],
 	    "action": "reject"
 	});
@@ -3710,6 +3800,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateTransportFields(this.value);
         });
     }
+    initDomainCounts();
 });
 
 function outboundToNaive(ob) {
