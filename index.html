@@ -866,7 +866,7 @@
         <div class="logo">⚡</div>
         <div style="flex:1">
             <h1>Sing-Box Config Generator</h1>
-            <p style="color:var(--text-dim);font-size:0.75rem;margin-top:2px;font-family:'JetBrains Mono',monospace">sing-box 1.14+ · конвертер подписок и генератор конфигов · detour для rule_sets</p>
+            <p style="color:var(--text-dim);font-size:0.75rem;margin-top:2px;font-family:'JetBrains Mono',monospace">sing-box extended · конвертер подписок и генератор конфигов · detour для rule_sets</p>
         </div>
         <button class="proto-badge" onclick="document.getElementById('protoModal').classList.add('open')" title="Поддерживаемые протоколы">?</button>
     </header>
@@ -894,13 +894,15 @@
                 <span class="proto-tag">mieru</span>
                 <span class="proto-tag">naive</span>
                 <span class="proto-tag">wireguard</span>
+                <span class="proto-tag">amneziawg (awg://)</span>
+                <span class="proto-tag">warp</span>
                 <span class="proto-tag">ssh</span>
                 <span class="proto-tag">socks4/5</span>
                 <span class="proto-tag">http/https</span>
                 <span class="proto-tag">sn://</span>
             </div>
             <div style="margin-top:12px;font-size:0.72rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace">
-                Транспорты: tcp · ws · grpc · http/h2 · quic · httpupgrade · xhttp/splithttp<br>
+                Транспорты: tcp · ws · grpc · http/h2 · quic · httpupgrade · xhttp (stream-up/stream-one/packet-up)<br>
                 TLS: reality · utls fingerprint · insecure<br>
                 Подписки: base64 · plain text · http/https URL · sn:// share
             </div>
@@ -1051,7 +1053,7 @@
                         </div>
                     </div>
                     <div class="field" id="proxyDnsCustom">
-                        <input type="text" id="proxyDnsAddr" placeholder="https://one.one.one.one/dns-query" value="https://one.one.one.one/dns-query">
+                        <input type="text" id="proxyDnsAddr" placeholder="https://1.1.1.1/dns-query" value="https://1.1.1.1/dns-query">
                     </div>
                     <div class="field">
                         <label>Стратегия IP</label>
@@ -1066,13 +1068,6 @@
             </div>
 
             <div class="sep"></div>
-            <div class="field">
-                <label>Optimistic DNS cache <span class="badge" style="background:rgba(63,185,80,0.12);color:var(--accent2)">1.14+</span></label>
-                <div class="toggle-row">
-                    <label class="toggle"><input type="checkbox" id="dnsOptimistic" checked><span class="toggle-slider"></span></label>
-                    <span class="toggle-label">Сразу вернуть просроченный кэш, обновить в фоне</span>
-                </div>
-            </div>
             <div class="field">
                 <label>Fake IP <span class="badge" style="background:rgba(210,168,255,0.12);color:var(--accent4)">рекомендуется</span></label>
                 <div class="toggle-row">
@@ -1256,6 +1251,84 @@
 			    </div>
 			</div>
 			
+		<!-- WARP + AMNEZIAWG CARD -->
+		<div class="card full" style="margin-bottom:16px">
+		    <div class="card-title"><span class="dot" style="background:#f89406"></span>WARP · AmneziaWG <span class="badge" style="background:rgba(248,148,6,0.15);color:#f89406">Extended</span></div>
+
+		    <div class="field">
+		        <label>Cloudflare WARP endpoint</label>
+		        <div class="toggle-row">
+		            <label class="toggle"><input type="checkbox" id="warpEnabled" onchange="toggleWarpOpts()"><span class="toggle-slider"></span></label>
+		            <span class="toggle-label">Добавить WARP в endpoints[] и selector</span>
+		        </div>
+		    </div>
+		    <div id="warpOpts" style="display:none">
+		        <div class="inline-row" style="margin-top:8px">
+		            <div class="field">
+		                <label>Tag</label>
+		                <input type="text" id="warpTag" value="warp-out" placeholder="warp-out">
+		            </div>
+		            <div class="field">
+		                <label>Listen Port</label>
+		                <input type="text" id="warpListenPort" value="10000" placeholder="10000">
+		            </div>
+		            <div class="field">
+		                <label>UDP Timeout</label>
+		                <input type="text" id="warpUdpTimeout" value="5m0s" placeholder="5m0s">
+		            </div>
+		        </div>
+		        <div class="hint">Profile — необязательно, sing-box создаст новый WARP профиль автоматически</div>
+		        <div class="inline-row" style="margin-top:8px">
+		            <div class="field">
+		                <label>Profile ID</label>
+		                <input type="text" id="warpProfileId" placeholder="device-id (необязательно)">
+		            </div>
+		            <div class="field">
+		                <label>Private Key</label>
+		                <input type="text" id="warpPrivateKey" placeholder="base64 (необязательно)">
+		            </div>
+		        </div>
+		        <div class="field">
+		            <label>Auth Token</label>
+		            <input type="text" id="warpAuthToken" placeholder="auth-token (необязательно)">
+		        </div>
+		        <div class="sep"></div>
+		        <div class="field">
+		            <label>AmneziaWG обфускация для WARP</label>
+		            <div class="toggle-row">
+		                <label class="toggle"><input type="checkbox" id="warpAmneziaEnabled" onchange="toggleWarpAmnezia()"><span class="toggle-slider"></span></label>
+		                <span class="toggle-label">Jitter-пакеты для обхода блокировки WARP</span>
+		            </div>
+		        </div>
+		        <div id="warpAmneziaOpts" style="display:none">
+		            <div class="inline-row">
+		                <div class="field"><label>Jc</label><input type="text" id="warpJc" value="120" placeholder="120"></div>
+		                <div class="field"><label>Jmin</label><input type="text" id="warpJmin" value="23" placeholder="23"></div>
+		                <div class="field"><label>Jmax</label><input type="text" id="warpJmax" value="911" placeholder="911"></div>
+		            </div>
+		            <div class="inline-row">
+		                <div class="field"><label>H1</label><input type="text" id="warpH1" value="1"></div>
+		                <div class="field"><label>H2</label><input type="text" id="warpH2" value="2"></div>
+		                <div class="field"><label>H3</label><input type="text" id="warpH3" value="3"></div>
+		                <div class="field"><label>H4</label><input type="text" id="warpH4" value="4"></div>
+		            </div>
+		        </div>
+		        <div class="hint" style="margin-top:6px"><code>store_warp_config: true</code> добавляется в experimental автоматически</div>
+		    </div>
+
+		    <div class="sep" style="margin-top:10px"></div>
+
+		    <div class="field">
+		        <label>AmneziaWG из ссылок <span class="badge" style="background:rgba(63,185,80,0.12);color:var(--accent2)">auto</span></label>
+		        <div class="hint">Ссылки <code>awg://</code> парсятся автоматически. Параметры <code>Jc / Jmin / Jmax / S1 / S2 / H1-H4 / Itime</code> извлекаются из URL и добавляются в блок <code>amnezia{}</code> WireGuard endpoint.</div>
+		    </div>
+		    <div class="sep"></div>
+		    <div class="field">
+		        <label>XHTTP транспорт <span class="badge" style="background:rgba(88,166,255,0.12);color:var(--accent)">auto</span></label>
+		        <div class="hint">Поддерживается для VLESS / VMess / Trojan. Режимы: <code>stream-up</code> · <code>stream-one</code> · <code>packet-up</code>. xmux и x_padding настраиваются через ✏️ редактор профиля.</div>
+		    </div>
+		</div>
+
     <!-- ACTIONS -->
     <div class="actions">
         <button class="btn btn-primary" onclick="generateFromProfiles()">
@@ -1315,6 +1388,7 @@
 					    <option value="juicity">juicity</option>
 					    <option value="anytls">anytls</option>
 					    <option value="wireguard">wireguard</option>
+				    <option value="wireguard-awg">wireguard (AmneziaWG)</option>
 					    <option value="socks">socks4/5</option>
 					    <option value="http">http/https</option>
 					    <option value="ssh">ssh</option>
@@ -1389,12 +1463,52 @@
 	                    <option value="ws">WebSocket</option>
 	                    <option value="http">HTTP/2</option>
 	                    <option value="httpupgrade">HTTP Upgrade</option>
+	                    <option value="xhttp">XHTTP (SplitHTTP)</option>
 	                </select>
 	            </div>
 	            <div class="edit-field" id="editTransportOpts" style="display:none">
 	                <label>Параметры транспорта (path, host)</label>
 	                <input type="text" id="editTransportPath" placeholder="path: / или service_name">
 	                <input type="text" id="editTransportHost" placeholder="host (для ws/http)" style="margin-top:8px">
+	                <input type="text" id="editTransportXhttpMode" placeholder="mode: stream-up / packet-up / stream-one" style="margin-top:8px;display:none">
+	                <!-- XHTTP advanced -->
+	                <div id="editXhttpAdvanced" style="display:none;margin-top:8px">
+	                    <input type="text" id="editXhttpPadding" placeholder="x_padding_bytes: 100-1000 (по умолч.; 0 запрещён)" style="margin-bottom:6px">
+	                    <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:6px;font-family:monospace">xmux (для H2/H3)</div>
+	                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+	                        <input type="text" id="editXmuxConcurrency" placeholder="max_concurrency: 16-32" style="flex:1;min-width:120px">
+	                        <input type="text" id="editXmuxMaxRequests" placeholder="h_max_request_times: 600-900" style="flex:1;min-width:140px">
+	                    </div>
+	                </div>
+	            </div>
+	            <!-- AMNEZIAWG fields (wireguard only) -->
+	            <div id="editAmneziaFields" style="display:none">
+	                <div class="edit-field">
+	                    <label>AmneziaWG обфускация</label>
+	                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+	                        <label class="toggle"><input type="checkbox" id="editAmneziaEnabled" onchange="toggleEditAmnezia()"><span class="toggle-slider"></span></label>
+	                        <span style="font-size:0.8rem;color:var(--text-muted)">Включить amnezia{} блок</span>
+	                    </div>
+	                    <div id="editAmneziaParams" style="display:none">
+	                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+	                            <div><label style="font-size:0.68rem">Jc</label><input type="text" id="editAmneziaJc" value="120" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">Jmin</label><input type="text" id="editAmneziaJmin" value="23" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">Jmax</label><input type="text" id="editAmneziaJmax" value="911" style="padding:5px 8px"></div>
+	                        </div>
+	                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+	                            <div><label style="font-size:0.68rem">S1</label><input type="text" id="editAmneziaS1" value="0" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">S2</label><input type="text" id="editAmneziaS2" value="0" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">H1</label><input type="text" id="editAmneziaH1" value="1" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">H2</label><input type="text" id="editAmneziaH2" value="2" style="padding:5px 8px"></div>
+	                        </div>
+	                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+	                            <div><label style="font-size:0.68rem">H3</label><input type="text" id="editAmneziaH3" value="3" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">H4</label><input type="text" id="editAmneziaH4" value="4" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">Itime</label><input type="text" id="editAmneziaItime" value="50" style="padding:5px 8px"></div>
+	                            <div><label style="font-size:0.68rem">MTU</label><input type="text" id="editAmneziaWgMtu" value="1408" style="padding:5px 8px"></div>
+	                        </div>
+	                    </div>
+	                </div>
 	            </div>
 	        </div>
 	        <div class="edit-modal-footer">
@@ -1453,10 +1567,58 @@ function setPlatform(p) {
     });
 }
 
-function togglePlatformSelector() {
-    const sel = document.getElementById('platformSelector');
-    sel.style.display = sel.style.display === 'none' ? 'flex' : 'none';
+function toggleWarpOpts() {
+    document.getElementById('warpOpts').style.display =
+        document.getElementById('warpEnabled').checked ? 'block' : 'none';
 }
+function toggleWarpAmnezia() {
+    document.getElementById('warpAmneziaOpts').style.display =
+        document.getElementById('warpAmneziaEnabled').checked ? 'block' : 'none';
+}
+
+// Returns WARP endpoint object if enabled
+function getWarpEndpoint() {
+    if (!document.getElementById('warpEnabled')?.checked) return null;
+    const tag = document.getElementById('warpTag').value.trim() || 'warp-out';
+    const ep = {
+        "type": "warp",
+        "tag": tag,
+        "listen_port": parseInt(document.getElementById('warpListenPort').value) || 10000,
+        "udp_timeout": document.getElementById('warpUdpTimeout').value.trim() || "5m0s"
+    };
+    // amnezia
+    if (document.getElementById('warpAmneziaEnabled')?.checked) {
+        ep.amnezia = {
+            "jc":   parseInt(document.getElementById('warpJc').value)   || 120,
+            "jmin": parseInt(document.getElementById('warpJmin').value)  || 23,
+            "jmax": parseInt(document.getElementById('warpJmax').value)  || 911,
+            "h1":   parseInt(document.getElementById('warpH1').value)    || 1,
+            "h2":   parseInt(document.getElementById('warpH2').value)    || 2,
+            "h3":   parseInt(document.getElementById('warpH3').value)    || 3,
+            "h4":   parseInt(document.getElementById('warpH4').value)    || 4
+        };
+    }
+    // profile (only if at least one field is filled)
+    const pid   = document.getElementById('warpProfileId').value.trim();
+    const pkey  = document.getElementById('warpPrivateKey').value.trim();
+    const pauth = document.getElementById('warpAuthToken').value.trim();
+    if (pid || pkey || pauth) {
+        ep.profile = { "detour": "direct" };
+        if (pid)   ep.profile.id           = pid;
+        if (pkey)  ep.profile.private_key  = pkey;
+        if (pauth) ep.profile.auth_token   = pauth;
+    } else {
+        ep.profile = { "detour": "direct" };
+    }
+    return ep;
+}
+
+function toggleEditAmnezia() {
+    document.getElementById('editAmneziaParams').style.display =
+        document.getElementById('editAmneziaEnabled').checked ? 'block' : 'none';
+}
+
+
 
 const stackHints = {
     gvisor: 'gVisor — безопаснее, меньше утечек, выше нагрузка на CPU',
@@ -1547,6 +1709,22 @@ let chainOrder = [];          // array of tags in chain order
 async function loadProfiles() {
     let input = document.getElementById('inputData').value.trim();
     if (!input) { showError('Введите ссылку или Base64'); return; }
+
+    // ── WireGuard / AmneziaWG .conf вставлен напрямую в textarea ──────
+    if (/\[Interface\]/i.test(input)) {
+        const ob = parseWireguardConf(input, 'wg-conf');
+        if (ob) {
+            const parsed = deduplicateAndTag([ob]);
+            allParsedProfiles = parsed;
+            chainOrder = [];
+            document.getElementById('fetchStatus').style.display = 'block';
+            document.getElementById('fetchStatus').style.color = 'var(--accent)';
+            document.getElementById('fetchStatus').textContent =
+                '\u2713 .conf: загружен ' + (ob.amnezia ? 'AmneziaWG' : 'WireGuard') + ' профиль';
+            renderProfilePanel();
+            return;
+        }
+    }
 
     const loadBtn    = document.getElementById('loadBtn');
     const fetchSt    = document.getElementById('fetchStatus');
@@ -1763,6 +1941,24 @@ async function loadFromFile(input) {
         // Не распознали — вставляем в textarea для ручного просмотра
         document.getElementById('inputData').value = text;
         return;
+    }
+
+    // ── WireGuard / AmneziaWG .conf (INI-формат) ─────────────────────
+    if (file.name.endsWith('.conf') || /^\s*\[Interface\]/i.test(text)) {
+        const fetchSt = document.getElementById('fetchStatus');
+        try {
+            const ob = parseWireguardConf(text, file.name.replace(/\.conf$/i,'').replace(/\s+/g,'_') || 'wg');
+            if (ob) {
+                const parsed = deduplicateAndTag([ob]);
+                allParsedProfiles = parsed;
+                chainOrder = [];
+                fetchSt.style.display = 'block';
+                fetchSt.style.color = 'var(--accent)';
+                fetchSt.textContent = `✓ .conf: загружен ${ob.amnezia ? 'AmneziaWG' : 'WireGuard'} профиль`;
+                renderProfilePanel();
+                return;
+            }
+        } catch(e) { console.error('conf parse error', e); }
     }
 
     // Текстовый файл — вставляем в поле и запускаем загрузку
@@ -2014,7 +2210,7 @@ function renderProfilePanel() {
         if (ob.server) {
             const pingBtn = item.querySelector('.ping-btn');
             // Восстанавливаем цвет если уже был пинг
-            if (p._pingMs !== undefined) applyPingResult(pingBtn, p._pingMs);
+            if (p._pingReality) applyPingResult(pingBtn, undefined, true); else if (p._pingMs !== undefined) applyPingResult(pingBtn, p._pingMs);
             pingBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 pingServer(ob.server, ob.server_port || 443, e.target);
@@ -2186,6 +2382,14 @@ async function pingAllProfiles(btn) {
 function pingServerToProfile(p) {
     return new Promise(resolve => {
         const ob = p.outbound;
+        // Reality серверы дропают соединения с неправильным SNI (браузер посылает hostname,
+        // сервер ждёт SNI-camouflage) → тихий дроп → 5сек таймаут.
+        // Сразу помечаем как reality и пропускаем.
+        if (ob.tls && ob.tls.reality && ob.tls.reality.enabled) {
+            p._pingMs = undefined;
+            p._pingReality = true;
+            return resolve();
+        }
         const host = ob.server;
         const port = ob.server_port || 443;
         const t0 = performance.now();
@@ -2219,13 +2423,18 @@ function updatePingBtnInList(p) {
     btns.forEach(btn => {
         if (btn.dataset.server === p.outbound.server &&
             btn.dataset.port  === String(p.outbound.server_port || 443)) {
-            applyPingResult(btn, p._pingMs);
+            applyPingResult(btn, p._pingMs, p._pingReality);
         }
     });
 }
 
-function applyPingResult(el, ms) {
-    if (ms === null) {
+function applyPingResult(el, ms, isReality) {
+    if (isReality) {
+        el.textContent = '🔒 reality';
+        el.style.color = 'var(--accent4)';
+        el.style.borderColor = 'var(--accent4)';
+        el.title = 'Reality-серверы нельзя пинговать из браузера: неправильный SNI дропается сервером';
+    } else if (ms === null) {
         el.textContent = 'timeout';
         el.style.color = 'var(--accent3)';
         el.style.borderColor = 'var(--accent3)';
@@ -2237,7 +2446,7 @@ function applyPingResult(el, ms) {
     }
 }
 
-// ─── GENERATE FROM PROFILES (ИСПРАВЛЕННАЯ ВЕРСИЯ ДЛЯ 1.14+) ───────────────────────────
+// ─── GENERATE FROM PROFILES ───────────────────────────
 function generateFromProfiles() {
     if (allParsedProfiles.length === 0) {
         processInput();
@@ -2263,7 +2472,7 @@ function generateFromProfiles() {
             }
         }
 
-        // 2. Строим цепочку (ЛОГИКА ДЛЯ SING-BOX 1.14+)
+        // 2. Строим цепочку
         // В цепочке [A, B, C] -> С идет через B, B идет через A.
         // Мы идем с конца массива к началу.
         for (let i = chainOrder.length - 1; i > 0; i--) {
@@ -2288,7 +2497,7 @@ function generateFromProfiles() {
         // Результирующий список для выбора в UI: Конец цепочки + одиночные серверы + direct
         const selectorTags = [exitPointTag, ...otherTags, 'direct'];
 
-        console.log('Chain setup (v1.14):', chainOrder.join(' -> '));
+        
         console.log('Final entry in selector:', exitPointTag);
 
         generateConfigFromParsed(outboundsList, [...new Set(selectorTags)]);
@@ -2328,9 +2537,26 @@ function buildTls(params, hostname) {
         "utls": { "enabled": true, "fingerprint": params.get('fp') || "chrome" }
     };
     if (sec === 'reality') {
-        tls.reality = { "enabled": true, "public_key": params.get('pbk') || "", "short_id": params.get('sid') || "" };
+        const sidRaw = params.get('sid') || '';
+        const spxRaw = params.get('spx') || '';
+        // spx — либо short_id (hex 0–16 символов без '/'), либо spiderX path (xray-only).
+        const isHexSid = spxRaw.length > 0 && /^[0-9a-fA-F]{1,16}$/.test(spxRaw);
+        const shortId = sidRaw || (isHexSid ? spxRaw : '');
+        tls.reality = { "enabled": true, "public_key": params.get('pbk') || "", "short_id": shortId };
     }
+    // Явный alpn из URI (например alpn=h3 у TUIC / alpn=h2 для xhttp)
+    const alpnRaw = params.get('alpn');
+    if (alpnRaw) tls.alpn = alpnRaw.split(',').map(s => s.trim()).filter(Boolean);
     return tls;
+}
+
+// Разобрать x_padding_bytes из URI-параметров / extra JSON
+function _xhttpPadding(params) {
+    let extraObj = {};
+    try { const raw = params.get('extra'); if (raw) extraObj = JSON.parse(decodeURIComponent(raw)); } catch(e) {}
+    const raw = params.get('xPaddingBytes') || params.get('x_padding_bytes')
+              || extraObj.xPaddingBytes || extraObj.x_padding_bytes || '';
+    return (raw && raw !== '0' && raw !== '0-0') ? String(raw) : '100-1000';
 }
 
 function buildTransport(params) {
@@ -2348,10 +2574,32 @@ function buildTransport(params) {
     if (t === 'httpupgrade')
         return { "type": "httpupgrade", "path": params.get('path') || "/",
                  ...(params.get('host') ? { "headers": { "Host": params.get('host') } } : {}) };
-    // xhttp / splithttp -> httpupgrade in sing-box
-    if (t === 'xhttp' || t === 'splithttp')
-        return { "type": "httpupgrade", "path": params.get('path') || "/",
-                 ...(params.get('host') ? { "headers": { "Host": params.get('host') } } : {}) };
+
+    // ── xhttp / splithttp → sing-box-extended V2RayXHTTPOptions ──────
+    if (t === 'xhttp' || t === 'splithttp') {
+        const paddingVal = _xhttpPadding(params);
+        // sing-box-extended принимает "auto","stream-up","stream-one","packet-up"
+        // "auto" = valid (UnmarshalJSON принимает; в xray URIs тоже встречается)
+        const VALID_MODES = ['auto', 'stream-up', 'stream-one', 'packet-up'];
+        const rawMode = params.get('mode') || '';
+        const mode = VALID_MODES.includes(rawMode) ? rawMode : 'stream-up';
+        const obj = {
+            "type": "xhttp",
+            "path": params.get('path') || "/",
+            ...(params.get('host') ? { "host": params.get('host') } : {}),
+            "mode": mode,
+            "x_padding_bytes": paddingVal
+        };
+        // spx = spiderX download path (xray).
+        // Поле в sing-box-extended — "download" (не "download_settings"!).
+        // Генерируем только если spx — реальный путь (не дефолтный "/").
+        // download требует свой x_padding_bytes (иначе checkV2RayXHTTPBaseOptions вернёт ошибку).
+        const spxRaw = params.get('spx') || '';
+        if (spxRaw && spxRaw !== '/' && spxRaw.startsWith('/')) {
+            obj.download = { "path": spxRaw, "x_padding_bytes": paddingVal };
+        }
+        return obj;
+    }
     return null;
 }
 
@@ -2369,6 +2617,11 @@ function _parseVless(url, params, tag, r) {
     if (tr) {
         if (tr.type === 'grpc' && !tr.service_name) {
             delete tr.service_name;
+        }
+        // xhttp требует HTTP/2. decideHTTPVersion() в sing-box-extended выбирает версию по TLS NextProtos.
+        // Без явного alpn NextProtos() = [] → HTTP/1.1 → stream-up тихо ломается.
+        if (tr.type === 'xhttp' && out.tls && !out.tls.alpn) {
+            out.tls.alpn = ["h2"];
         }
         out.transport = tr;
     }
@@ -2393,8 +2646,30 @@ function _parseVmess(urlStr, r) {
         }
         if (net === 'h2')          out.transport = { "type": "http",        "path": json.path || "/", ...(json.host ? { "host": [json.host] } : {}) };
         if (net === 'quic')        out.transport = { "type": "quic" };
-        if (net === 'httpupgrade' || net === 'xhttp' || net === 'splithttp')
+        if (net === 'httpupgrade')
                                    out.transport = { "type": "httpupgrade", "path": json.path || "/", ...(json.host ? { "headers": { "Host": json.host } } : {}) };
+        if (net === 'xhttp' || net === 'splithttp') {
+            let extraObj = {};
+            try { if (json.extra) extraObj = typeof json.extra === 'string' ? JSON.parse(json.extra) : json.extra; } catch(e) {}
+            const paddingRaw = json.xPaddingBytes || json.x_padding_bytes
+                             || extraObj.xPaddingBytes || extraObj.x_padding_bytes || '';
+            const paddingVal = paddingRaw && paddingRaw !== '0' && paddingRaw !== '0-0' ? String(paddingRaw) : '100-1000';
+            const VALID_MODES = ['auto', 'stream-up', 'stream-one', 'packet-up'];
+            const rawMode = json.mode || '';
+            const mode = VALID_MODES.includes(rawMode) ? rawMode : 'stream-up';
+            const xhttpObj = { "type": "xhttp", "path": json.path || "/",
+                                                 ...(json.host ? { "host": json.host } : {}),
+                                                 "mode": mode,
+                                                 "x_padding_bytes": paddingVal };
+            // spx → download (правильное имя поля; download.x_padding_bytes обязателен)
+            const spxRaw = json.spx || '';
+            if (spxRaw && spxRaw !== '/' && spxRaw.startsWith('/')) {
+                xhttpObj.download = { "path": spxRaw, "x_padding_bytes": paddingVal };
+            }
+            // xhttp требует HTTP/2 — inject alpn если не задан
+            if (out.tls && !out.tls.alpn) out.tls.alpn = ["h2"];
+            out.transport = xhttpObj;
+        }
         return out;
     } catch(e) { return null; }
 }
@@ -2472,6 +2747,9 @@ function _parseTrojan(url, params, tag, r) {
         if (tr.type === 'grpc' && !tr.service_name) {
             delete tr.service_name;
         }
+        if (tr.type === 'xhttp' && out.tls && !out.tls.alpn) {
+            out.tls.alpn = ["h2"];
+        }
         out.transport = tr;
     }
     return out;
@@ -2500,6 +2778,7 @@ function _parseNaive(url, params, tag, r) {
              "server": url.hostname, "server_port": parseInt(url.port) || 443,
              "username": decodeURIComponent(url.username) || "",
              "password": decodeURIComponent(url.password) || "",
+             "udp_over_tcp": { "enabled": true },
              "tls": { "enabled": true, "server_name": params.get('sni') || url.hostname },
              "domain_resolver": r };
 }
@@ -2590,32 +2869,215 @@ function _parseSsh(url, params, tag, r) {
     return out;
 }
 
+// ── Парсер WireGuard / AmneziaWG .conf (INI-формат) ─────────────────
+// Парсер WireGuard / AmneziaWG .conf (INI-формат) — построчный, без regex
+function parseWireguardConf(text, tag) {
+    // Построчный парсинг секций
+    const sections = {};  // { Interface: {key: val, ...}, Peer: {...} }
+    let cur = null;
+    for (const rawLine of text.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith('#')) continue;
+        const secM = line.match(/^\[(.+?)\]$/);
+        if (secM) { cur = secM[1]; sections[cur] = sections[cur] || {}; continue; }
+        if (!cur) continue;
+        const eqIdx = line.indexOf('=');
+        if (eqIdx < 0) continue;
+        const k = line.slice(0, eqIdx).trim();
+        const v = line.slice(eqIdx + 1).trim();
+        // Берём первое вхождение ключа (для Address только первый [Peer])
+        if (!(k in sections[cur])) sections[cur][k] = v;
+    }
+
+    const iface = sections['Interface'] || {};
+    const peer0 = sections['Peer'] || {};
+
+    const privateKey  = iface['PrivateKey'] || '';
+    const addressRaw  = iface['Address']    || '';
+    const mtu         = parseInt(iface['MTU'] || '1280');
+    const publicKey   = peer0['PublicKey']  || '';
+    const endpointRaw = peer0['Endpoint']   || '';
+    const pskRaw      = peer0['PresharedKey'] || '';
+    const keepalive   = parseInt(peer0['PersistentKeepalive'] || '0');
+
+    if (!privateKey || !publicKey) return null;
+
+    const toCIDR = a => {
+        a = a.trim();
+        if (a.includes('/')) return a;
+        return a + (a.includes(':') ? '/128' : '/32');
+    };
+    const addresses = addressRaw ? addressRaw.split(',').map(toCIDR) : [];
+
+    const peer = { "allowed_ips": ["0.0.0.0/0", "::/0"], "public_key": publicKey };
+    if (pskRaw) peer.pre_shared_key = pskRaw;
+    if (keepalive) peer.persistent_keepalive_interval = keepalive;
+    if (endpointRaw) {
+        const lc = endpointRaw.lastIndexOf(':');
+        peer.address = endpointRaw.slice(0, lc);
+        peer.port    = parseInt(endpointRaw.slice(lc + 1));
+    }
+
+    const out = {
+        "type": "wireguard",
+        "tag": tag || 'wg',
+        "_isEndpoint": true,
+        "address": addresses,
+        "private_key": privateKey,
+        "mtu": mtu || 1280,
+        "peers": [peer]
+    };
+
+    // ── AmneziaWG поля (Jc — маркер что это AWG) ──────────────────────
+    const jc = parseInt(iface['Jc'] || '0');
+    if (jc > 0) {
+        const parseRange = v => {
+            if (!v) return undefined;
+            if (v.includes('-')) {
+                const [a, b] = v.split('-').map(Number);
+                if (!isNaN(a) && !isNaN(b)) return a === b ? a : (a + '-' + b);
+            }
+            const n = parseInt(v);
+            return isNaN(n) ? undefined : n;
+        };
+        const amn = {
+            "jc":   jc,
+            "jmin": parseInt(iface['Jmin'] || '23'),
+            "jmax": parseInt(iface['Jmax'] || '911')
+        };
+        ['S1','S2','S3','S4'].forEach(k => {
+            const v = parseInt(iface[k] || '0');
+            if (v) amn[k.toLowerCase()] = v;
+        });
+        ['H1','H2','H3','H4'].forEach((k, i) => {
+            const v = parseRange(iface[k]);
+            amn[k.toLowerCase()] = (v !== undefined) ? v : (i + 1);
+        });
+        ['I1','I2','I3','I4','I5','J1','J2','J3'].forEach(k => {
+            if (iface[k]) amn[k.toLowerCase()] = iface[k];
+        });
+        const itime = parseInt(iface['Itime'] || '0');
+        if (itime) amn.itime = itime;
+        out.amnezia = amn;
+    }
+    return out;
+}
+
 function _parseWireguard(urlStr, tag, r) {
     try {
         const url = new URL(urlStr);
         const params = new URLSearchParams(url.search);
         const peers = [];
-        const endpoints  = params.getAll('endpoint');
+        const epList  = params.getAll('endpoint');
         const publicKeys = params.getAll('publickey');
-        if (endpoints.length > 0) {
-            endpoints.forEach((ep, i) => {
+        if (epList.length > 0) {
+            epList.forEach((ep, i) => {
                 const lastColon = ep.lastIndexOf(':');
                 const h = ep.slice(0, lastColon); const p = ep.slice(lastColon+1);
-                peers.push({ "server": h, "server_port": parseInt(p),
-                             "public_key": publicKeys[i] || publicKeys[0] || "",
-                             "allowed_ips": ["0.0.0.0/0", "::/0"] });
+                peers.push({
+                    "address": h,
+                    "port": parseInt(p),
+                    "public_key": publicKeys[i] || publicKeys[0] || "",
+                    "allowed_ips": ["0.0.0.0/0", "::/0"]
+                });
             });
         } else {
-            peers.push({ "server": url.hostname, "server_port": parseInt(url.port) || 51820,
-                         "public_key": params.get('publickey') || "",
-                         ...(params.get('presharedkey') ? { "pre_shared_key": params.get('presharedkey') } : {}),
-                         "allowed_ips": ["0.0.0.0/0", "::/0"] });
+            const peer = {
+                "address": url.hostname,
+                "port": parseInt(url.port) || 51820,
+                "public_key": params.get('publickey') || "",
+                "allowed_ips": ["0.0.0.0/0", "::/0"]
+            };
+            if (params.get('presharedkey')) peer.pre_shared_key = params.get('presharedkey');
+            peers.push(peer);
         }
-        const out = { "type": "wireguard", "tag": tag,
-                      "private_key": decodeURIComponent(url.username) || params.get('privatekey') || "",
-                      "peers": peers, "mtu": parseInt(params.get('mtu')) || 1408,
-                      "domain_resolver": r };
-        if (params.get('address')) out.address = params.get('address').split(',');
+
+        // ── reserved: WireGuardPeer.Reserved []uint8 ──────────────────
+        // Форматы в URI: base64 ("AAAA"), comma-separated ("0,0,0") или hex ("000000")
+        const reservedRaw = params.get('reserved');
+        if (reservedRaw) {
+            let reservedArr = null;
+            if (/^\d+(,\d+)*$/.test(reservedRaw)) {
+                // "0,0,0" или "1,2,3"
+                reservedArr = reservedRaw.split(',').map(Number);
+            } else {
+                // base64 → байты
+                try {
+                    const bin = atob(reservedRaw.replace(/-/g,'+').replace(/_/g,'/'));
+                    reservedArr = Array.from(bin, c => c.charCodeAt(0));
+                } catch(e) {
+                    reservedArr = [0, 0, 0];
+                }
+            }
+            // sing-box ожидает ровно 3 байта (Reserved [3]byte в wire формате)
+            while (reservedArr.length < 3) reservedArr.push(0);
+            peers[0].reserved = reservedArr.slice(0, 3);
+        }
+
+        // Endpoint format (sing-box 1.11+)
+        const out = {
+            "type": "wireguard",
+            "tag": tag,
+            "_isEndpoint": true,
+            "private_key": decodeURIComponent(url.username) || params.get('privatekey') || "",
+            "peers": peers,
+            "mtu": parseInt(params.get('mtu')) || 1408,
+            "listen_port": 0,
+            "domain_resolver": r
+        };
+        const addrParam = params.get('address');
+        if (addrParam) out.address = addrParam.split(',').map(s => s.trim()).filter(Boolean);
+        else out.address = [];
+
+        // ── AmneziaWG params (awg:// или wg:// с Jc-параметром) ───────
+        // Поля по структуре WireGuardAmnezia в option/wireguard.go:
+        // JC, JMin, JMax, S1-S4, H1-H4 (*Range), I1-I5 (string), J1-J3 (string), ITime (int64)
+        const jc = params.get('Jc') || params.get('jc');
+        if (jc) {
+            // Вспомогательная функция: Range из строки "from-to" или числа → объект или число
+            // Range.MarshalJSON: если from==to → число; иначе → "from-to" строка.
+            // Мы генерируем число (sing-box его успешно анмаршалит как Range{from, to}).
+            const parseRange = (v, def) => {
+                if (!v) return def;
+                const s = String(v);
+                if (s.includes('-')) {
+                    const [a, b] = s.split('-').map(Number);
+                    if (!isNaN(a) && !isNaN(b)) return `${a}-${b}`;
+                }
+                const n = parseInt(s);
+                return isNaN(n) ? def : n;
+            };
+            const p = k => params.get(k.toUpperCase()) || params.get(k.toLowerCase()) || null;
+            const amn = {
+                "jc":   parseInt(jc),
+                "jmin": parseInt(p('Jmin') || '23'),
+                "jmax": parseInt(p('Jmax') || '911')
+            };
+            // S1-S4
+            ['S1','S2','S3','S4'].forEach(k => {
+                const v = parseInt(p(k) || '0');
+                if (v) amn[k.toLowerCase()] = v;
+            });
+            // H1-H4 (*Xbadoption.Range) — принимает число или "from-to"
+            ['H1','H2','H3','H4'].forEach((k, i) => {
+                const v = parseRange(p(k), i + 1);
+                amn[k.toLowerCase()] = v;
+            });
+            // I1-I5, J1-J3 (строковые поля дополнительного шума)
+            ['I1','I2','I3','I4','I5'].forEach(k => {
+                const v = p(k);
+                if (v) amn[k.toLowerCase()] = v;
+            });
+            ['J1','J2','J3'].forEach(k => {
+                const v = p(k);
+                if (v) amn[k.toLowerCase()] = v;
+            });
+            // ITime (int64)
+            const itime = parseInt(p('Itime') || '0');
+            if (itime) amn.itime = itime;
+            out.amnezia = amn;
+        }
+
         return out;
     } catch(e) { return null; }
 }
@@ -2639,6 +3101,13 @@ function parseLink(urlStr) {
             const url   = new URL(fixed);
             return _parseWireguard(fixed,
                 decodeURIComponent(url.hash.replace('#','')) || `wg-${rand()}`, r);
+        }
+        // AmneziaWG — same as WireGuard but with Jc/Jmin/Jmax/etc params
+        if (raw === 'awg' || raw === 'amneziawg') {
+            const fixed = urlStr.replace(/^awg:\/\//, 'wireguard://').replace(/^amneziawg:\/\//, 'wireguard://');
+            const url   = new URL(fixed);
+            return _parseWireguard(fixed,
+                decodeURIComponent(url.hash.replace('#','')) || `awg-${rand()}`, r);
         }
         if (raw.startsWith('naive+')) {
             // naive+https:// or naive+quic://
@@ -2706,6 +3175,17 @@ function buildTransportParams(ob) {
     } else if (tr.type === 'httpupgrade') {
         if (tr.path) p.path = tr.path;
         if (tr.headers?.Host) p.host = tr.headers.Host;
+    } else if (tr.type === 'xhttp') {
+        if (tr.path) p.path = tr.path;
+        if (tr.host) p.host = tr.host;
+        if (tr.mode) p.mode = tr.mode;
+        // x_padding_bytes — экспортируем оба варианта для совместимости (xray читает оба)
+        if (tr.x_padding_bytes) {
+            p.x_padding_bytes = tr.x_padding_bytes;
+            p.extra = JSON.stringify({ xPaddingBytes: tr.x_padding_bytes });
+        }
+        // download.path → spx (spiderX path для xray; поле "download" в sing-box)
+        if (tr.download?.path) p.spx = tr.download.path;
     }
     return p;
 }
@@ -2713,6 +3193,7 @@ function buildTransportParams(ob) {
 function outboundToVless(ob) {
     const tls = ob.tls;
     const params = new URLSearchParams();
+    params.set('encryption', 'none');
     const tr = buildTransportParams(ob);
     for (const [k,v] of Object.entries(tr)) params.set(k, v);
     if (tls?.enabled) {
@@ -2721,7 +3202,7 @@ function outboundToVless(ob) {
         if (tls.utls?.fingerprint) params.set('fp', tls.utls.fingerprint);
         if (tls.reality?.enabled) {
             params.set('pbk', tls.reality.public_key || '');
-            params.set('sid', tls.reality.short_id || '');
+            if (tls.reality.short_id) params.set('sid', tls.reality.short_id);
         }
     }
     if (ob.flow) params.set('flow', ob.flow);
@@ -2803,12 +3284,32 @@ function outboundToSocks(ob) {
 
 function outboundToWg(ob) {
     const peer = ob.peers?.[0] || {};
+    const peerAddr = peer.address || peer.server || ob.server || '';
+    const peerPort = peer.port || peer.server_port || ob.server_port || 51820;
     const params = new URLSearchParams();
     if (peer.public_key) params.set('publickey', peer.public_key);
     if (peer.pre_shared_key) params.set('presharedkey', peer.pre_shared_key);
     if (ob.mtu) params.set('mtu', String(ob.mtu));
-    if (ob.address) params.set('address', ob.address.join(','));
-    return `wireguard://${encodeURIComponent(ob.private_key||'')}@${peer.server||ob.server}:${peer.server_port||ob.server_port}?${params.toString()}#${encodeURIComponent(ob.tag)}`;
+    if (ob.address && ob.address.length) params.set('address', ob.address.join(','));
+    // reserved: []uint8 → base64
+    if (peer.reserved && Array.isArray(peer.reserved) && peer.reserved.length > 0) {
+        const bytes = new Uint8Array(peer.reserved);
+        params.set('reserved', btoa(String.fromCharCode(...bytes)));
+    }
+    // AmneziaWG params
+    if (ob.amnezia) {
+        const amn = ob.amnezia;
+        if (amn.jc)   params.set('Jc',   String(amn.jc));
+        if (amn.jmin) params.set('Jmin', String(amn.jmin));
+        if (amn.jmax) params.set('Jmax', String(amn.jmax));
+        ['s1','s2','s3','s4'].forEach(k => { if (amn[k]) params.set(k.toUpperCase(), String(amn[k])); });
+        ['h1','h2','h3','h4'].forEach(k => { if (amn[k] !== undefined) params.set(k.toUpperCase(), String(amn[k])); });
+        ['i1','i2','i3','i4','i5'].forEach(k => { if (amn[k]) params.set(k.toUpperCase(), amn[k]); });
+        ['j1','j2','j3'].forEach(k => { if (amn[k]) params.set(k.toUpperCase(), amn[k]); });
+        if (amn.itime) params.set('Itime', String(amn.itime));
+    }
+    const proto = ob.amnezia ? 'awg' : 'wireguard';
+    return `${proto}://${encodeURIComponent(ob.private_key||'')}@${peerAddr}:${peerPort}?${params.toString()}#${encodeURIComponent(ob.tag)}`;
 }
 
 function outboundToSN(ob) {
@@ -3016,6 +3517,16 @@ function pingServer(host, port, el) {
     // Ищем тег через data-tag атрибут (надёжнее textContent)
     const tag = el.closest('.profile-item')?.dataset?.tag || null;
 
+    // Проверяем Reality — нет смысла пинговать (сервер дропает неверный SNI)
+    if (tag) {
+        const p = allParsedProfiles.find(p => p.outbound.tag === tag);
+        if (p && p.outbound.tls && p.outbound.tls.reality && p.outbound.tls.reality.enabled) {
+            p._pingReality = true;
+            applyPingResult(el, undefined, true);
+            return;
+        }
+    }
+
     const t0 = performance.now();
     const ws = new WebSocket(`wss://${host}:${port}`);
     let done = false;
@@ -3101,7 +3612,6 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
     const directStrategy = state.directDnsStrategy;
     const proxyStrategy = state.proxyDnsStrategy;
     const useFakeip = document.getElementById('fakeipEnabled').checked;
-    const useOptimistic = document.getElementById('dnsOptimistic').checked;
 
     const proxyServerDomains = outboundsList.map(o => o.server).filter(s => s && !isIpAddress(s));
     const bootstrapDomains = [...new Set(proxyServerDomains)];
@@ -3125,7 +3635,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 
     // dns-remote
     {
-        const addr = proxyDnsAddr || "https://dns.google/dns-query";
+        const addr = proxyDnsAddr || "https://1.1.1.1/dns-query";
         const lower = addr.toLowerCase();
         let srv;
         if (lower.startsWith('https://') || lower.startsWith('http://')) {
@@ -3245,18 +3755,55 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 	    "action": "reject"
 	});
 
-    const httpClients = [{ "tag": "default-http-client", "detour": "proxy-select" }];
 
-    const cleanOutbounds = outboundsList.map(o => {
+
+    const cleanOutbounds = [];
+    const cleanEndpoints = [];
+    outboundsList.forEach(o => {
         const c = JSON.parse(JSON.stringify(o));
         delete c.domain_resolver;
+        delete c._duplicate;
+        // Добавляем udp_over_tcp по умолчанию для всех naive outbound'ов
+        if (c.type === 'naive' && !c.udp_over_tcp) {
+            c.udp_over_tcp = { "enabled": true };
+        }
         if (c.transport?.type === 'grpc' && c.transport.service_name === '') delete c.transport.service_name;
-        return c;
+        // sing-box-extended: x_padding_bytes is required for xhttp (0 отклоняется)
+        if (c.transport?.type === 'xhttp') {
+            const fixPadding = obj => {
+                const pv = obj.x_padding_bytes;
+                if (!pv || pv === '0' || pv === '0-0') obj.x_padding_bytes = '100-1000';
+            };
+            fixPadding(c.transport);
+            // Мигрируем старый ключ download_settings → download (если файл загружен со старым именем)
+            if (c.transport.download_settings && !c.transport.download) {
+                c.transport.download = c.transport.download_settings;
+                delete c.transport.download_settings;
+            }
+            if (c.transport.download) fixPadding(c.transport.download);
+        }
+        if (c.type === 'wireguard' || c._isEndpoint) {
+            delete c._isEndpoint;
+            // Ensure endpoint format: peers use address/port
+            if (c.peers) {
+                c.peers = c.peers.map(p => {
+                    const np = { ...p };
+                    if (np.server !== undefined) { np.address = np.address || np.server; delete np.server; }
+                    if (np.server_port !== undefined) { np.port = np.port || np.server_port; delete np.server_port; }
+                    return np;
+                });
+            }
+            // Remove old outbound-only fields
+            delete c.network;
+            cleanEndpoints.push(c);
+        } else {
+            delete c._isEndpoint;
+            cleanOutbounds.push(c);
+        }
     });
 
     const dnsObj = { "servers": dnsServers, "rules": dnsRules, "final": "dns-remote" };
     if (directStrategy) dnsObj.strategy = directStrategy;
-    if (useOptimistic) dnsObj.optimistic = true;
 
     const isAndroid = state.targetPlatform === 'android';
     const tunInbound = {
@@ -3277,8 +3824,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "rules": routeRules,
         "final": "proxy-select",
         "auto_detect_interface": true,
-        "default_domain_resolver": { "server": "dns-local", "rewrite_ttl": 60 },
-        "default_http_client": "default-http-client"
+        "default_domain_resolver": { "server": "dns-local", "rewrite_ttl": 60 }
     };
     // override_android_vpn только для Android
     if (isAndroid) {
@@ -3291,7 +3837,16 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 
     const experimentalObj = { "cache_file": { "enabled": true } };
     if (useFakeip) experimentalObj.cache_file.store_fakeip = true;
-    if (useOptimistic) experimentalObj.cache_file.store_dns = true;
+
+    // WARP endpoint from UI
+    const warpEp = getWarpEndpoint();
+    if (warpEp) {
+        experimentalObj.cache_file.store_warp_config = true;
+        cleanEndpoints.push(warpEp);
+        // Add warp tag to selector
+        if (!proxyTags.includes(warpEp.tag)) proxyTags.push(warpEp.tag);
+        selectorObj.outbounds = proxyTags;
+    }
 
     // ... внутри generateConfigFromParsed ...
 
@@ -3305,13 +3860,15 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
 
     const config = {
         "log": { "disabled": true, "level": "error" },
-        "http_clients": httpClients,
         "dns": dnsObj,
         "inbounds": [tunInbound],
         "outbounds": [selectorObj, ...cleanOutbounds, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
         "route": routeObj,
         "experimental": experimentalObj
     };
+    if (cleanEndpoints.length > 0) {
+        config.endpoints = cleanEndpoints;
+    }
     
         // ПРИМЕНЯЕМ ОЧИЩЕННЫЙ МАССИВ
     if (cleanRuleSets.length > 0) {
@@ -3486,14 +4043,24 @@ function openEditModal(index) {
     // Заполняем базовые поля
     document.getElementById('editTag').value = ob.tag || '';
     document.getElementById('editType').value = ob.type || 'vless';
-    document.getElementById('editServer').value = ob.server || '';
-    document.getElementById('editPort').value = ob.server_port || 443;
+    // Для WireGuard endpoint: server/port берём из peers[0]
+    const wgPeer = (ob.type === 'wireguard' && ob.peers?.[0]) ? ob.peers[0] : null;
+    document.getElementById('editServer').value = wgPeer ? (wgPeer.address || wgPeer.server || '') : (ob.server || '');
+    document.getElementById('editPort').value = wgPeer ? (wgPeer.port || wgPeer.server_port || 51820) : (ob.server_port || 443);
     
     // UUID / password
     const uuidField = document.getElementById('editUuid');
     if (ob.uuid) uuidField.value = ob.uuid;
+    else if (ob.private_key) uuidField.value = ob.private_key;
     else if (ob.password) uuidField.value = ob.password;
     else uuidField.value = '';
+    // Обновляем label
+    const uuidLabelEl = document.getElementById('editUuidField')?.querySelector('label');
+    if (uuidLabelEl) {
+        if (['vless','vmess','tuic','juicity'].includes(ob.type)) uuidLabelEl.textContent = 'UUID';
+        else if (ob.type === 'wireguard') uuidLabelEl.textContent = 'Private Key';
+        else uuidLabelEl.textContent = 'Пароль';
+    }
     
     // Метод для shadowsocks
     if (ob.method) {
@@ -3540,24 +4107,61 @@ function openEditModal(index) {
             document.getElementById('editTransportHost').value = 
                 (tr.headers && tr.headers.Host) || 
                 (tr.host && tr.host[0]) || '';
+        } else if (trType === 'xhttp') {
+            document.getElementById('editTransportPath').value = tr.path || '';
+            document.getElementById('editTransportHost').value = tr.host || '';
+            document.getElementById('editTransportXhttpMode').value = tr.mode || 'stream-up';
         }
     } else {
         document.getElementById('editTransportPath').value = '';
         document.getElementById('editTransportHost').value = '';
+        document.getElementById('editTransportXhttpMode').value = '';
     }
     
     document.getElementById('editModal').classList.add('open');
+    // Show amnezia section for wireguard
+    const amneziaSection = document.getElementById('editAmneziaFields');
+    if (amneziaSection) amneziaSection.style.display = ob.type === 'wireguard' ? 'block' : 'none';
+    if (ob.type === 'wireguard' && ob.amnezia) {
+        document.getElementById('editAmneziaEnabled').checked = true;
+        document.getElementById('editAmneziaParams').style.display = 'block';
+        document.getElementById('editAmneziaJc').value    = ob.amnezia.jc   ?? 120;
+        document.getElementById('editAmneziaJmin').value  = ob.amnezia.jmin ?? 23;
+        document.getElementById('editAmneziaJmax').value  = ob.amnezia.jmax ?? 911;
+        document.getElementById('editAmneziaS1').value    = ob.amnezia.s1   ?? 0;
+        document.getElementById('editAmneziaS2').value    = ob.amnezia.s2   ?? 0;
+        document.getElementById('editAmneziaH1').value    = ob.amnezia.h1   ?? 1;
+        document.getElementById('editAmneziaH2').value    = ob.amnezia.h2   ?? 2;
+        document.getElementById('editAmneziaH3').value    = ob.amnezia.h3   ?? 3;
+        document.getElementById('editAmneziaH4').value    = ob.amnezia.h4   ?? 4;
+        document.getElementById('editAmneziaItime').value = ob.amnezia.itime ?? 50;
+        document.getElementById('editAmneziaWgMtu').value = ob.mtu ?? 1408;
+    } else if (ob.type === 'wireguard') {
+        document.getElementById('editAmneziaEnabled').checked = false;
+        document.getElementById('editAmneziaParams').style.display = 'none';
+    }
+    // Populate xhttp advanced fields if applicable
+    if (ob.transport?.type === 'xhttp') {
+        if (ob.transport.x_padding_bytes) document.getElementById('editXhttpPadding').value = ob.transport.x_padding_bytes;
+        if (ob.transport.xmux) {
+            if (ob.transport.xmux.max_concurrency) document.getElementById('editXmuxConcurrency').value = ob.transport.xmux.max_concurrency;
+            if (ob.transport.xmux.h_max_request_times) document.getElementById('editXmuxMaxRequests').value = ob.transport.xmux.h_max_request_times;
+        }
+    }
 }
 
 function updateTransportFields(trType) {
     const optsDiv = document.getElementById('editTransportOpts');
     const pathInput = document.getElementById('editTransportPath');
     const hostInput = document.getElementById('editTransportHost');
+    const xhttpModeInput = document.getElementById('editTransportXhttpMode');
+    const xhttpAdv = document.getElementById('editXhttpAdvanced');
     
     if (trType && trType !== '') {
         optsDiv.style.display = 'block';
+        xhttpModeInput.style.display = 'none';
+        if (xhttpAdv) xhttpAdv.style.display = 'none';
         
-        // Меняем подсказку в зависимости от типа транспорта
         const label = document.querySelector('#editTransportOpts label');
         if (trType === 'grpc') {
             label.textContent = 'Service Name (gRPC)';
@@ -3573,6 +4177,14 @@ function updateTransportFields(trType) {
             pathInput.placeholder = 'path: / или /http';
             hostInput.style.display = 'block';
             hostInput.placeholder = 'host (опционально)';
+        } else if (trType === 'xhttp') {
+            label.textContent = 'Path, Host и Mode (XHTTP)';
+            pathInput.placeholder = 'path: /xhttp или /';
+            hostInput.style.display = 'block';
+            hostInput.placeholder = 'host (SNI или CDN хост)';
+            xhttpModeInput.style.display = 'block';
+            xhttpModeInput.placeholder = 'mode: stream-up (по умолчанию)';
+            if (xhttpAdv) xhttpAdv.style.display = 'block';
         }
     } else {
         optsDiv.style.display = 'none';
@@ -3645,6 +4257,16 @@ function saveProfileEdit() {
             }
         } else if (newType === 'wireguard') {
             ob.private_key = authVal;
+            ob._isEndpoint = true;
+            // Сервер/порт сохраняем в peers[0].address/port для endpoint формата
+            const serverVal = document.getElementById('editServer').value;
+            const portVal = parseInt(document.getElementById('editPort').value) || 51820;
+            if (!ob.peers || !ob.peers.length) ob.peers = [{}];
+            ob.peers[0].address = serverVal || ob.peers[0].address || '';
+            ob.peers[0].port = portVal || ob.peers[0].port || 51820;
+            if (!ob.peers[0].allowed_ips) ob.peers[0].allowed_ips = ["0.0.0.0/0", "::/0"];
+            if (!ob.listen_port) ob.listen_port = 0;
+            if (!ob.address) ob.address = [];
         } else {
             // trojan, shadowsocks, hysteria2, anytls, ssh...
             ob.password = authVal;
@@ -3720,6 +4342,31 @@ function saveProfileEdit() {
                     delete ob.transport.host;
                 }
                 delete ob.transport.headers;
+            } else if (trType === 'xhttp') {
+                ob.transport.path = path || '/';
+                if (host) ob.transport.host = host;
+                else delete ob.transport.host;
+                const modeVal = document.getElementById('editTransportXhttpMode').value.trim();
+                ob.transport.mode = modeVal || 'stream-up';
+                delete ob.transport.headers;
+                delete ob.transport.service_name;
+                // x_padding_bytes (sing-box 1.13+: "0" and "0-0" are rejected as "disabled")
+                const paddingVal = document.getElementById('editXhttpPadding')?.value.trim();
+                if (paddingVal && paddingVal !== '0' && paddingVal !== '0-0') {
+                    ob.transport.x_padding_bytes = paddingVal;
+                } else {
+                    ob.transport.x_padding_bytes = '100-1000';
+                }
+                // xmux
+                const xmuxConc = document.getElementById('editXmuxConcurrency')?.value.trim();
+                const xmuxReq  = document.getElementById('editXmuxMaxRequests')?.value.trim();
+                if (xmuxConc || xmuxReq) {
+                    ob.transport.xmux = {};
+                    if (xmuxConc) ob.transport.xmux.max_concurrency = xmuxConc;
+                    if (xmuxReq)  ob.transport.xmux.h_max_request_times = xmuxReq;
+                } else {
+                    delete ob.transport.xmux;
+                }
             }
         } else {
             delete ob.transport;
@@ -3728,6 +4375,29 @@ function saveProfileEdit() {
         delete ob.transport;
     }
     
+    // Amnezia block (wireguard only)
+    if (newType === 'wireguard' && document.getElementById('editAmneziaEnabled')?.checked) {
+        ob.amnezia = {
+            "jc":   parseInt(document.getElementById('editAmneziaJc').value)   || 120,
+            "jmin": parseInt(document.getElementById('editAmneziaJmin').value)  || 23,
+            "jmax": parseInt(document.getElementById('editAmneziaJmax').value)  || 911
+        };
+        const s1 = parseInt(document.getElementById('editAmneziaS1').value) || 0;
+        const s2 = parseInt(document.getElementById('editAmneziaS2').value) || 0;
+        if (s1) ob.amnezia.s1 = s1;
+        if (s2) ob.amnezia.s2 = s2;
+        ob.amnezia.h1 = parseInt(document.getElementById('editAmneziaH1').value) || 1;
+        ob.amnezia.h2 = parseInt(document.getElementById('editAmneziaH2').value) || 2;
+        ob.amnezia.h3 = parseInt(document.getElementById('editAmneziaH3').value) || 3;
+        ob.amnezia.h4 = parseInt(document.getElementById('editAmneziaH4').value) || 4;
+        const itime = parseInt(document.getElementById('editAmneziaItime').value) || 0;
+        if (itime) ob.amnezia.itime = itime;
+        const mtu = parseInt(document.getElementById('editAmneziaWgMtu').value) || 1408;
+        ob.mtu = mtu;
+    } else if (newType === 'wireguard') {
+        delete ob.amnezia;
+    }
+
     // Удаляем domain_resolver (будет добавлен при генерации)
     delete ob.domain_resolver;
     
@@ -3785,9 +4455,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const uuidLabel = uuidField.querySelector('label');
             if (type === 'vless' || type === 'vmess' || type === 'tuic' || type === 'juicity') {
                 uuidLabel.textContent = 'UUID';
+            } else if (type === 'wireguard') {
+                uuidLabel.textContent = 'Private Key';
             } else {
                 uuidLabel.textContent = 'Пароль';
             }
+            
+            // Показываем/скрываем секцию amnezia
+            const amneziaSection = document.getElementById('editAmneziaFields');
+            if (amneziaSection) amneziaSection.style.display = type === 'wireguard' ? 'block' : 'none';
             
             // Показываем метод только для shadowsocks
             methodField.style.display = type === 'shadowsocks' ? 'block' : 'none';
