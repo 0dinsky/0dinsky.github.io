@@ -1412,6 +1412,36 @@
 		    </div>
 		</div>
 
+    <!-- URL TEST CARD -->
+        <div class="card full">
+            <div class="card-title"><span class="dot green"></span>URL Test (авто-выбор прокси)</div>
+            <div class="field">
+                <label>Режим selector</label>
+                <div class="select-row" id="selectorMode">
+                    <button class="seg-btn active" data-v="selector" onclick="setSelector(this)">Ручной (selector)</button>
+                    <button class="seg-btn" data-v="urltest" onclick="setSelector(this)">Авто (urltest)</button>
+                </div>
+                <div class="hint">urltest — sing-box сам выберет быстрейший прокси по задержке</div>
+            </div>
+            <div id="urltestOpts" style="display:none">
+                <div class="field">
+                    <label>URL для проверки</label>
+                    <input type="text" id="urltestUrl" value="https://www.gstatic.com/generate_204" placeholder="https://www.gstatic.com/generate_204">
+                </div>
+                <div class="inline-row">
+                    <div class="field">
+                        <label>Интервал</label>
+                        <input type="text" id="urltestInterval" value="3m" placeholder="3m">
+                    </div>
+                    <div class="field">
+                        <label>Допуск (ms)</label>
+                        <input type="text" id="urltestTolerance" value="50" placeholder="50">
+                    </div>
+                </div>
+                <div class="hint">Формат интервала: <code>30s</code>, <code>3m</code>, <code>1h</code>. Допуск — разница в мс при которой не переключается.</div>
+            </div>
+        </div>
+
     <!-- ACTIONS -->
     <div class="actions">
         <button class="btn btn-primary" onclick="generateFromProfiles()">
@@ -2839,6 +2869,10 @@ function _parseVless(url, params, tag, r) {
         if (tr.type === 'xhttp' && out.tls && !out.tls.alpn) {
             out.tls.alpn = ["h2"];
         }
+        // flow (xtls-rprx-vision) несовместим с любым транспортом кроме TCP (raw)
+        if (tr.type && tr.type !== 'tcp') {
+            delete out.flow;
+        }
         out.transport = tr;
     }
     return out;
@@ -3926,6 +3960,26 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "outbounds": proxyTags, "default": proxyTags[0] || "direct"
     };
 
+    // urltest: если режим авто — добавляем proxy-auto перед selector
+    const extraOutbounds = [];
+    if (state.selectorMode === 'urltest' && proxyTags.filter(t => t !== 'direct').length > 0) {
+        const utUrl = document.getElementById('urltestUrl')?.value.trim() || 'https://www.gstatic.com/generate_204';
+        const utInterval = document.getElementById('urltestInterval')?.value.trim() || '3m';
+        const utTolerance = parseInt(document.getElementById('urltestTolerance')?.value) || 50;
+        const utOutbounds = proxyTags.filter(t => t !== 'direct');
+        extraOutbounds.push({
+            "type": "urltest",
+            "tag": "proxy-auto",
+            "outbounds": utOutbounds,
+            "url": utUrl,
+            "interval": utInterval,
+            "tolerance": utTolerance
+        });
+        // selector теперь включает proxy-auto как первый/дефолтный вариант
+        selectorObj.outbounds = ['proxy-auto', ...proxyTags];
+        selectorObj.default = 'proxy-auto';
+    }
+
    // ─── ROUTE RULES (ТЕПЕРЬ ПРАВИЛЬНО С ВЫБОРОМ OUTBOUND) ─────────────────
 	const routeRules = [];
 	
@@ -4011,6 +4065,10 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
             }
             // Remove old outbound-only fields
             delete c.network;
+            delete c.server;
+            delete c.server_port;
+            // itime есть в Go-структуре но не реализован в UAPI → IPC error -22
+            if (c.amnezia) delete c.amnezia.itime;
             cleanEndpoints.push(c);
         } else {
             delete c._isEndpoint;
@@ -4078,7 +4136,7 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         "log": { "disabled": true, "level": "error" },
         "dns": dnsObj,
         "inbounds": [tunInbound],
-        "outbounds": [selectorObj, ...cleanOutbounds, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
+        "outbounds": [selectorObj, ...extraOutbounds, ...cleanOutbounds, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
         "route": routeObj,
         "experimental": experimentalObj
     };
@@ -4518,7 +4576,11 @@ function saveProfileEdit() {
                 };
             }
             if (newType === 'vless' && !ob.flow) {
-                ob.flow = 'xtls-rprx-vision';
+                // flow совместим только с TCP (без транспорта). xhttp/grpc/ws/h2 — несовместимы.
+                const trType = document.getElementById('editTransport').value;
+                if (!trType || trType === 'tcp') {
+                    ob.flow = 'xtls-rprx-vision';
+                }
             }
         } else {
             delete ob.tls.reality;
@@ -4531,6 +4593,10 @@ function saveProfileEdit() {
     const supportsTransport = ['vless', 'vmess', 'trojan', 'shadowsocks'].includes(newType);
     if (supportsTransport) {
         const trType = document.getElementById('editTransport').value;
+        // flow несовместим с любым транспортом кроме TCP (raw)
+        if (trType && trType !== 'tcp') {
+            delete ob.flow;
+        }
         if (trType) {
             if (!ob.transport) ob.transport = {};
             ob.transport.type = trType;
