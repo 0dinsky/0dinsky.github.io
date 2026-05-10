@@ -441,33 +441,65 @@
             flex: 1;
         }
 
-        /* chain builder */
-        .chain-section { margin-top: 12px; }
-        .chain-title {
+        /* ── multi-chain builder ──────────────────────────────── */
+        .chains-section { margin-top: 12px; }
+        .chains-header {
             font-size: 0.72rem; font-weight: 700; letter-spacing: 1px;
             text-transform: uppercase; color: var(--text-muted);
-            margin-bottom: 8px; display: flex; align-items: center; gap: 7px;
+            margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
         }
-        .chain-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            min-height: 34px;
-            border: 1px dashed var(--border);
-            border-radius: 6px;
-            padding: 6px 8px;
-            align-items: center;
+        .add-chain-btn {
+            margin-left: auto;
+            padding: 2px 10px; font-size: 11px; font-weight: 700;
+            border: 1px solid var(--border); border-radius: 5px;
+            background: var(--surface2); color: var(--text-muted);
+            cursor: pointer; transition: all 0.15s; font-family: 'Syne', sans-serif;
         }
-        .chain-list.has-items { border-color: var(--accent4); }
+        .add-chain-btn:hover { border-color: var(--accent4); color: var(--accent4); }
+
+        .chain-block {
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            overflow: hidden;
+        }
+        .chain-block-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 5px 10px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+        }
+        .chain-color-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+        .chain-name-input {
+            flex: 1; background: transparent; border: none; outline: none;
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            font-weight: 600; color: var(--text); padding: 0;
+        }
+        .chain-clear-btn {
+            background: none; border: none; color: var(--text-dim);
+            font-size: 11px; cursor: pointer; padding: 0 3px; flex-shrink: 0;
+            transition: color 0.15s;
+        }
+        .chain-clear-btn:hover { color: var(--accent); }
+        .chain-del-btn {
+            background: none; border: none; color: var(--text-dim);
+            font-size: 13px; cursor: pointer; padding: 0 3px; flex-shrink: 0;
+            transition: color 0.15s;
+        }
+        .chain-del-btn:hover { color: var(--accent3); }
+        .chain-nodes-area {
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+            padding: 6px 10px; min-height: 36px;
+        }
         .chain-node {
             display: flex; align-items: center; gap: 5px;
             background: var(--surface2);
-            border: 1px solid var(--accent4);
             border-radius: 5px;
             padding: 3px 8px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
-            color: var(--accent4);
         }
         .chain-node .remove-node {
             cursor: pointer; color: var(--text-dim); font-size: 13px;
@@ -475,8 +507,8 @@
         }
         .chain-node .remove-node:hover { color: var(--accent3); }
         .chain-arrow { color: var(--text-dim); font-size: 12px; }
-        .chain-empty { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
-        .chain-hint { font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; font-family: 'JetBrains Mono', monospace; }
+        .chain-empty-msg { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+        .chains-hint { font-size: 0.7rem; color: var(--text-dim); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
 
         .chain-btn {
             flex-shrink: 0;
@@ -493,6 +525,51 @@
         }
         .chain-btn:hover { border-color: var(--accent4); color: var(--accent4); }
         .chain-btn.active { background: rgba(210,168,255,0.15); border-color: var(--accent4); color: var(--accent4); }
+
+        /* chain picker overlay */
+        #chainPicker {
+            display: none;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: var(--surface);
+            border-top: 2px solid var(--accent4);
+            border-radius: 14px 14px 0 0;
+            padding: 14px 16px 20px;
+            z-index: 9000;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+        }
+        #chainPicker.open { display: block; }
+        .chain-picker-title {
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 1px;
+            text-transform: uppercase; color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .chain-picker-options { display: flex; flex-direction: column; gap: 7px; }
+        .chain-picker-opt {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px;
+            border: 1px solid var(--border); border-radius: 7px;
+            background: var(--surface2); cursor: pointer;
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+            color: var(--text); transition: border-color 0.15s;
+        }
+        .chain-picker-opt:hover { border-color: var(--accent4); }
+        .chain-picker-opt.remove-opt { color: var(--accent3); border-color: transparent; }
+        .chain-picker-opt.remove-opt:hover { border-color: var(--accent3); }
+        .chain-picker-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        #chainPickerBackdrop {
+            display: none; position: fixed; inset: 0; z-index: 8999;
+            background: rgba(0,0,0,0.5);
+        }
+        #chainPickerBackdrop.open { display: block; }
+
+        .chain-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            border-radius: 3px;
+            padding: 1px 6px;
+            flex-shrink: 0;
+            border: 1px solid;
+        }
 
         /* ── Progress bar ──────────────────────────────────── */
         #parseProgress {
@@ -951,16 +1028,22 @@
 
         <div class="profile-list" id="profileList"></div>
 
-        <!-- CHAIN BUILDER -->
-        <div class="chain-section">
-            <div class="chain-title">
+        <!-- MULTI-CHAIN BUILDER -->
+        <div class="chains-section">
+            <div class="chains-header">
                 <span style="width:7px;height:7px;border-radius:50%;background:var(--accent4);display:inline-block"></span>
-                Цепочка прокси (chaining)
+                Цепочки прокси
+                <button class="add-chain-btn" onclick="addChain()">+ Новая цепочка</button>
             </div>
-            <div class="chain-list" id="chainList">
-                <span class="chain-empty" id="chainEmpty">Удерживайте профиль для добавления в цепочку</span>
-            </div>
-            <div class="chain-hint">Нажмите ⛓ у профиля — добавить/убрать из цепочки. Трафик: входящий → узел 1 → узел 2 → … → интернет (через <code>detour</code>).</div>
+            <div id="chainBlocksContainer"></div>
+            <div class="chains-hint">⛓ у профиля → выбор цепочки. Трафик: узел 1 → узел 2 → … → интернет. Каждая цепочка — отдельный вариант в selector.</div>
+        </div>
+
+        <!-- Chain picker overlay -->
+        <div id="chainPickerBackdrop" onclick="closeChainPicker()"></div>
+        <div id="chainPicker">
+            <div class="chain-picker-title">Добавить в цепочку</div>
+            <div class="chain-picker-options" id="chainPickerOptions"></div>
         </div>
     </div>
 
@@ -1703,7 +1786,26 @@ function setSelector(btn) {
 // ─── MAIN PROCESS ─────────────────────────────────────────────────────
 // ─── PROFILE STATE ────────────────────────────────────────────────────
 let allParsedProfiles = [];   // [{outbound, enabled}]
-let chainOrder = [];          // array of tags in chain order
+let chains = [{ id: 0, name: 'Цепочка 1', order: [] }]; // [{id, name, order:[tags]}]
+let chainIdCounter = 1;
+const CHAIN_COLORS = ['var(--accent4)','var(--accent)','var(--accent2)','#ff9500','var(--accent3)'];
+function getChainColor(idx) { return CHAIN_COLORS[idx % CHAIN_COLORS.length]; }
+function getChainColorHex(idx) {
+    const map = ['#d2a8ff','#58a6ff','#3fb950','#ff9500','#f78166'];
+    return map[idx % map.length];
+}
+
+// Найти, в какой цепочке и на какой позиции находится тег
+function getProfileChainInfo(tag) {
+    for (let ci = 0; ci < chains.length; ci++) {
+        const pos = chains[ci].order.indexOf(tag);
+        if (pos !== -1) return { chainIdx: ci, chainId: chains[ci].id, pos };
+    }
+    return null;
+}
+function resetChains() {
+    chains = [{ id: chainIdCounter++, name: 'Цепочка 1', order: [] }];
+}
 
 // ─── LOAD PROFILES (parse without generating) ─────────────────────────
 async function loadProfiles() {
@@ -1716,7 +1818,7 @@ async function loadProfiles() {
         if (ob) {
             const parsed = deduplicateAndTag([ob]);
             allParsedProfiles = parsed;
-            chainOrder = [];
+            resetChains();
             document.getElementById('fetchStatus').style.display = 'block';
             document.getElementById('fetchStatus').style.color = 'var(--accent)';
             document.getElementById('fetchStatus').textContent =
@@ -1751,7 +1853,7 @@ async function loadProfiles() {
             return;
         }
         allParsedProfiles = [{ outbound: ob, enabled: true }];
-        chainOrder = [];
+        resetChains();
         setLoadIdle(loadBtn, fetchSt, `✓ Загружен 1 профиль`);
         renderProfilePanel();
         return;
@@ -1858,7 +1960,7 @@ async function loadProfiles() {
 
     progressEl.style.display = 'none';
     allParsedProfiles = parsed;
-    chainOrder = [];
+    resetChains();
     const skipCount = links.length - parsed.length - (dedupEnabled ? dupeCount : 0);
     const dupeMsg = dupeCount
         ? (dedupEnabled ? ` · исключено дублей: ${dupeCount}` : ` · дублей (оставлены): ${dupeCount}`)
@@ -1931,7 +2033,7 @@ async function loadFromFile(input) {
                 await new Promise(r => setTimeout(r, 0));
                 const parsed = deduplicateAndTag(outbounds);
                 allParsedProfiles = parsed;
-                chainOrder = [];
+                resetChains();
                 setLoadIdle(document.getElementById('loadBtn'), fetchSt,
                     `✓ Из JSON: ${parsed.length} профилей`);
                 renderProfilePanel();
@@ -1951,7 +2053,7 @@ async function loadFromFile(input) {
             if (ob) {
                 const parsed = deduplicateAndTag([ob]);
                 allParsedProfiles = parsed;
-                chainOrder = [];
+                resetChains();
                 fetchSt.style.display = 'block';
                 fetchSt.style.color = 'var(--accent)';
                 fetchSt.textContent = `✓ .conf: загружен ${ob.amnezia ? 'AmneziaWG' : 'WireGuard'} профиль`;
@@ -2134,6 +2236,86 @@ function finalizeOutbound(json) {
 }
 
 
+
+// ─── CHAIN MANAGEMENT ─────────────────────────────────────────────────────
+function addChain() {
+    const idx = chains.length;
+    chains.push({ id: chainIdCounter++, name: `Цепочка ${idx + 1}`, order: [] });
+    renderProfilePanel();
+}
+
+function removeChain(id) {
+    const idx = chains.findIndex(c => c.id === id);
+    if (idx === -1 || chains.length <= 1) return;
+    chains.splice(idx, 1);
+    renderProfilePanel();
+}
+
+function clearChain(id) {
+    const ch = chains.find(c => c.id === id);
+    if (ch) { ch.order = []; renderProfilePanel(); }
+}
+
+function removeFromAllChains(tag) {
+    chains.forEach(c => { c.order = c.order.filter(t => t !== tag); });
+}
+
+function assignToChain(tag, chainId) {
+    // Убираем из любой другой цепочки
+    removeFromAllChains(tag);
+    const ch = chains.find(c => c.id === chainId);
+    if (ch && !ch.order.includes(tag)) ch.order.push(tag);
+    closeChainPicker();
+    renderProfilePanel();
+}
+
+function removeFromChainPicker(tag) {
+    removeFromAllChains(tag);
+    closeChainPicker();
+    renderProfilePanel();
+}
+
+let _chainPickerTag = null;
+function openChainPicker(tag) {
+    _chainPickerTag = tag;
+    const opts = document.getElementById('chainPickerOptions');
+    opts.innerHTML = '';
+
+    chains.forEach((ch, ci) => {
+        const color = getChainColor(ci);
+        const inThis = ch.order.includes(tag);
+        const opt = document.createElement('div');
+        opt.className = 'chain-picker-opt';
+        if (inThis) opt.style.borderColor = color;
+        opt.innerHTML = `
+            <span class="chain-picker-dot" style="background:${color}"></span>
+            <span style="flex:1">${escHtml(ch.name)}</span>
+            ${inThis ? '<span style="color:var(--accent2);font-size:11px">✓ в этой</span>' : ''}
+        `;
+        opt.addEventListener('click', () => assignToChain(tag, ch.id));
+        opts.appendChild(opt);
+    });
+
+    // Кнопка "убрать из всех"
+    const info = getProfileChainInfo(tag);
+    if (info) {
+        const rem = document.createElement('div');
+        rem.className = 'chain-picker-opt remove-opt';
+        rem.innerHTML = `<span>✕ Убрать из цепочек</span>`;
+        rem.addEventListener('click', () => removeFromChainPicker(tag));
+        opts.appendChild(rem);
+    }
+
+    document.getElementById('chainPicker').classList.add('open');
+    document.getElementById('chainPickerBackdrop').classList.add('open');
+}
+
+function closeChainPicker() {
+    document.getElementById('chainPicker').classList.remove('open');
+    document.getElementById('chainPickerBackdrop').classList.remove('open');
+    _chainPickerTag = null;
+}
+
 // ─── PROFILE PANEL RENDER ─────────────────────────────────────────────
 const VISIBLE_LIMIT = 200;
 let profileFilter = '';
@@ -2177,40 +2359,42 @@ function renderProfilePanel() {
     shown.forEach((p, localIdx) => {
         const i = allParsedProfiles.indexOf(p);
         const ob = p.outbound;
-        const inChain = chainOrder.includes(ob.tag);
-        const chainIdx = chainOrder.indexOf(ob.tag);
-        const isDupe = false; // полные дубли отбрасываются при парсинге
+        const chainInfo = getProfileChainInfo(ob.tag);
+        const isDupe = false;
 
         const item = document.createElement('div');
-        item.className = 'profile-item' +
-            (p.enabled ? '' : ' excluded') +
-            (inChain ? ' in-chain' : '');
+        let itemClass = 'profile-item' + (p.enabled ? '' : ' excluded');
+        if (chainInfo) itemClass += ' in-chain';
+        item.className = itemClass;
+        if (chainInfo) item.style.borderColor = getChainColor(chainInfo.chainIdx);
         item.dataset.tag = ob.tag || '';
-        if (isDupe) item.style.borderColor = 'var(--accent3)';
+
+        const badgeHtml = chainInfo
+            ? `<span class="chain-badge" style="color:${getChainColor(chainInfo.chainIdx)};border-color:${getChainColor(chainInfo.chainIdx)};background:${getChainColorHex(chainInfo.chainIdx)}22">C${chainInfo.chainIdx+1}·#${chainInfo.pos+1}</span>`
+            : '';
 
         item.innerHTML = `
-		    <div class="profile-check">${p.enabled ? '✓' : ''}</div>
-		    <span class="profile-type">${ob.type || '?'}</span>
-		    <span class="profile-tag">${escHtml(ob.tag || '(без имени)')}${isDupe ? ' <span style="color:var(--accent3);font-size:9px">DUP</span>' : ''}</span>
-		    ${inChain ? `<span class="chain-badge">#${chainIdx+1}</span>` : ''}
-		    ${ob.server ? `<button class="ping-btn" data-server="${escHtml(ob.server)}" data-port="${ob.server_port||443}" title="Пинг ${escHtml(ob.server)}">${p._pingMs !== undefined ? (p._pingMs === null ? 'timeout' : p._pingMs+'ms') : 'ping'}</button>` : ''}
-		    <button class="edit-btn" title="Редактировать">✏️</button>
-		    <button class="chain-btn${inChain ? ' active' : ''}" title="Цепочка">⛓</button>
-		`;
-		
-		// Обработчик редактирования
-		const editBtn = item.querySelector('.edit-btn');
-		if (editBtn) {
-		    editBtn.addEventListener('click', (e) => {
-		        e.stopPropagation();
-		        openEditModal(i);
-		    });
-		}
-		
+            <div class="profile-check">${p.enabled ? '✓' : ''}</div>
+            <span class="profile-type">${ob.type || '?'}</span>
+            <span class="profile-tag">${escHtml(ob.tag || '(без имени)')}</span>
+            ${badgeHtml}
+            ${ob.server ? `<button class="ping-btn" data-server="${escHtml(ob.server)}" data-port="${ob.server_port||443}" title="Пинг ${escHtml(ob.server)}">${p._pingMs !== undefined ? (p._pingMs === null ? 'timeout' : p._pingMs+'ms') : 'ping'}</button>` : ''}
+            <button class="edit-btn" title="Редактировать">✏️</button>
+            <button class="chain-btn${chainInfo ? ' active' : ''}" title="Добавить в цепочку" style="${chainInfo ? 'border-color:'+getChainColor(chainInfo.chainIdx)+';color:'+getChainColor(chainInfo.chainIdx) : ''}">⛓</button>
+        `;
+
+        const editBtn = item.querySelector('.edit-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openEditModal(i);
+            });
+        }
+
         if (ob.server) {
             const pingBtn = item.querySelector('.ping-btn');
-            // Восстанавливаем цвет если уже был пинг
-            if (p._pingReality) applyPingResult(pingBtn, undefined, true); else if (p._pingMs !== undefined) applyPingResult(pingBtn, p._pingMs);
+            if (p._pingReality) applyPingResult(pingBtn, undefined, true);
+            else if (p._pingMs !== undefined) applyPingResult(pingBtn, p._pingMs);
             pingBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 pingServer(ob.server, ob.server_port || 443, e.target);
@@ -2220,25 +2404,19 @@ function renderProfilePanel() {
         item.querySelector('.chain-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             if (!allParsedProfiles[i].enabled) return;
-            chainOrder = chainOrder.includes(ob.tag)
-                ? chainOrder.filter(t => t !== ob.tag)
-                : [...chainOrder, ob.tag];
-            renderProfilePanel();
+            openChainPicker(ob.tag);
         });
 
         item.addEventListener('click', () => {
             allParsedProfiles[i].enabled = !allParsedProfiles[i].enabled;
-            if (!allParsedProfiles[i].enabled) chainOrder = chainOrder.filter(t => t !== ob.tag);
+            if (!allParsedProfiles[i].enabled) removeFromAllChains(ob.tag);
             renderProfilePanel();
         });
 
         item.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             if (!allParsedProfiles[i].enabled) return;
-            chainOrder = chainOrder.includes(ob.tag)
-                ? chainOrder.filter(t => t !== ob.tag)
-                : [...chainOrder, ob.tag];
-            renderProfilePanel();
+            openChainPicker(ob.tag);
         });
 
         frag.appendChild(item);
@@ -2260,31 +2438,69 @@ function escHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function renderChain() {
-    const cl    = document.getElementById('chainList');
-    const empty = document.getElementById('chainEmpty');
-    cl.innerHTML = '';
-    if (chainOrder.length === 0) {
-        cl.classList.remove('has-items');
-        cl.innerHTML = '<span class="chain-empty" id="chainEmpty">Правый клик по профилю — добавить в цепочку</span>';
-        return;
-    }
-    cl.classList.add('has-items');
-    chainOrder.forEach((tag, i) => {
-        if (i > 0) {
-            const arr = document.createElement('span');
-            arr.className = 'chain-arrow';
-            arr.textContent = '→';
-            cl.appendChild(arr);
+function renderChain() { renderChains(); }  // alias
+
+function renderChains() {
+    const container = document.getElementById('chainBlocksContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    chains.forEach((chain, ci) => {
+        const color = getChainColor(ci);
+        const colorHex = getChainColorHex(ci);
+
+        const block = document.createElement('div');
+        block.className = 'chain-block';
+        block.style.borderColor = color;
+
+        // Header
+        const hdr = document.createElement('div');
+        hdr.className = 'chain-block-header';
+        hdr.innerHTML = `
+            <span class="chain-color-dot" style="background:${color}"></span>
+            <input class="chain-name-input" value="${escHtml(chain.name)}" style="color:${color}"
+                   onchange="chains[${ci}].name=this.value" />
+            <button class="chain-clear-btn" title="Очистить цепочку" onclick="clearChain(${chain.id})">✕ очистить</button>
+            ${chains.length > 1 ? `<button class="chain-del-btn" title="Удалить цепочку" onclick="removeChain(${chain.id})">🗑</button>` : ''}
+        `;
+        block.appendChild(hdr);
+
+        // Nodes area
+        const area = document.createElement('div');
+        area.className = 'chain-nodes-area';
+
+        if (chain.order.length === 0) {
+            const empty = document.createElement('span');
+            empty.className = 'chain-empty-msg';
+            empty.textContent = 'Нажмите ⛓ у профиля для добавления';
+            area.appendChild(empty);
+        } else {
+            chain.order.forEach((tag, idx) => {
+                if (idx > 0) {
+                    const arr = document.createElement('span');
+                    arr.className = 'chain-arrow';
+                    arr.textContent = '→';
+                    area.appendChild(arr);
+                }
+                const node = document.createElement('div');
+                node.className = 'chain-node';
+                node.style.cssText = `border:1px solid ${color};color:${color};background:${colorHex}18`;
+                node.innerHTML = `<span>${escHtml(tag)}</span><span class="remove-node" title="Убрать">×</span>`;
+                node.querySelector('.remove-node').addEventListener('click', () => {
+                    chains[ci].order = chains[ci].order.filter(t => t !== tag);
+                    renderProfilePanel();
+                });
+                area.appendChild(node);
+            });
+            // Показываем exit-point подсказку
+            const exit = chain.order[chain.order.length - 1];
+            const tip = document.createElement('span');
+            tip.style.cssText = `font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;margin-left:4px`;
+            tip.textContent = `→ selector`;
+            area.appendChild(tip);
         }
-        const node = document.createElement('div');
-        node.className = 'chain-node';
-        node.innerHTML = `<span>${tag}</span><span class="remove-node" title="Убрать">×</span>`;
-        node.querySelector('.remove-node').addEventListener('click', () => {
-            chainOrder = chainOrder.filter(t => t !== tag);
-            renderProfilePanel();
-        });
-        cl.appendChild(node);
+        block.appendChild(area);
+        container.appendChild(block);
     });
 }
 
@@ -2294,7 +2510,7 @@ function selectAllProfiles() {
 }
 function deselectAllProfiles() {
     allParsedProfiles.forEach(p => p.enabled = false);
-    chainOrder = [];
+    chains.forEach(c => c.order = []);
     renderProfilePanel();
 }
 
@@ -2463,46 +2679,46 @@ function generateFromProfiles() {
     let outboundsList = enabledProfiles.map(p => JSON.parse(JSON.stringify(p.outbound)));
     const proxyTags = outboundsList.map(o => o.tag);
 
-    if (chainOrder.length > 1) {
-        // 1. Проверяем существование тегов
-        for (const tag of chainOrder) {
-            if (!proxyTags.includes(tag)) {
-                showError(`Тег "${tag}" не найден среди профилей`);
-                return;
+    // Собираем все теги, занятые в цепочках
+    const allChainedTags = new Set(chains.flatMap(c => c.order));
+    const activeChains = chains.filter(c => c.order.length > 1);
+    const soloChains   = chains.filter(c => c.order.length === 1);
+
+    if (activeChains.length > 0 || soloChains.length > 0) {
+        // 1. Валидация — все теги в цепочках должны существовать
+        for (const ch of chains) {
+            for (const tag of ch.order) {
+                if (!proxyTags.includes(tag)) {
+                    showError(`Тег "${tag}" не найден среди профилей`);
+                    return;
+                }
             }
         }
 
-        // 2. Строим цепочку
-        // В цепочке [A, B, C] -> С идет через B, B идет через A.
-        // Мы идем с конца массива к началу.
-        for (let i = chainOrder.length - 1; i > 0; i--) {
-            const currentTag = chainOrder[i];   // Текущий узел (выходной)
-            const parentTag = chainOrder[i - 1]; // Предыдущий узел (через который идем)
-            
-            const ob = outboundsList.find(o => o.tag === currentTag);
-            if (ob) {
-                // В новых версиях используем detour вместо chain
-                ob.detour = parentTag; 
-                delete ob.chain; // На всякий случай удаляем старое поле
+        // 2. Строим detour для каждой активной цепочки
+        // [A, B, C] → C.detour=B, B.detour=A
+        for (const ch of activeChains) {
+            for (let i = ch.order.length - 1; i > 0; i--) {
+                const ob = outboundsList.find(o => o.tag === ch.order[i]);
+                if (ob) {
+                    ob.detour = ch.order[i - 1];
+                    delete ob.chain;
+                }
             }
         }
 
-        // 3. Формируем список для селектора
-        // Точка входа в цепочку — это ПОСЛЕДНИЙ узел (он потянет за собой остальные)
-        const exitPointTag = chainOrder[chainOrder.length - 1];
-        
-        // Все остальные профили, которые не участвуют в этой конкретной цепочке
-        const otherTags = proxyTags.filter(t => !chainOrder.includes(t));
-        
-        // Результирующий список для выбора в UI: Конец цепочки + одиночные серверы + direct
-        const selectorTags = [exitPointTag, ...otherTags, 'direct'];
+        // 3. Формируем selector:
+        //    - exit-point каждой multi-цепочки (последний тег)
+        //    - единственный тег solo-цепочек
+        //    - профили не в цепочках
+        const chainExits = activeChains.map(ch => ch.order[ch.order.length - 1]);
+        const soloTags   = soloChains.map(ch => ch.order[0]);
+        const freeTags   = proxyTags.filter(t => !allChainedTags.has(t));
+        const selectorTags = [...new Set([...chainExits, ...soloTags, ...freeTags, 'direct'])];
 
-        
-        console.log('Final entry in selector:', exitPointTag);
-
-        generateConfigFromParsed(outboundsList, [...new Set(selectorTags)]);
+        generateConfigFromParsed(outboundsList, selectorTags);
     } else {
-        // Если цепочка не задана
+        // Нет цепочек — все профили в selector напрямую
         const selectorTags = [...proxyTags, 'direct'];
         generateConfigFromParsed(outboundsList, selectorTags);
     }
