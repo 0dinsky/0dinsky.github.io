@@ -570,6 +570,20 @@
             flex-shrink: 0;
             border: 1px solid;
         }
+        .muxfrag-badge {
+            font-size: 10px; cursor: pointer; padding: 0 4px; flex-shrink: 0;
+            border: 1px solid var(--border); border-radius: 4px; background: transparent;
+            color: var(--text-dim); line-height: 18px; height: 18px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .muxfrag-badge:hover { background: var(--surface2); color: var(--text); }
+        .muxfrag-badge.mf-global  { border-color: transparent; color: var(--text-dim); opacity: 0.5; }
+        .muxfrag-badge.mf-custom  { border-color: #f89406; color: #f89406; }
+        .muxfrag-badge.mf-off     { border-color: var(--accent3); color: var(--accent3); }
+        .mf-mode-btn { padding: 5px 12px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); cursor: pointer; transition: all 0.15s; }
+        .mf-mode-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .mf-bulk-btn { font-size: 11px; padding: 6px 4px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; text-align:center; width:100%; }
+        .mf-bulk-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
         /* ── Progress bar ──────────────────────────────────── */
         #parseProgress {
@@ -1236,6 +1250,16 @@
 			<div class="card full">
 			    <div class="card-title"><span class="dot" style="background:#ff9500"></span>Fragment · Шум · Mux</div>
 			    
+			    <!-- BULK APPLY BAR -->
+			    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px">
+			        <button class="mf-bulk-btn" onclick="bulkMuxFrag('all')" title="Все профили используют настройки ниже">🌍 Всем</button>
+			        <button class="mf-bulk-btn" onclick="bulkMuxFrag('enabled')" title="Активные (✓) — настройки ниже, остальные — off">✓ Активным</button>
+			        <button class="mf-bulk-btn" onclick="bulkMuxFrag('none')" title="Отключить для всех профилей">✗ Никому</button>
+			        <button class="mf-bulk-btn" onclick="bulkMuxFrag('reset')" title="Сброс: все профили → режим Глобальный">↺ Сброс</button>
+			    </div>
+			    <div id="mfBulkStatus" style="font-size:11px;color:var(--accent);margin-bottom:6px;min-height:16px"></div>
+			    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">💡 Индивидуально: нажмите <b style="color:#f89406">⚡</b> на профиле в списке</div>
+			    
 			    <!-- FRAGMENT -->
 			    <div class="field">
 			        <label>Фрагментация TLS <span class="badge" style="background:rgba(210,168,255,0.12);color:var(--accent4)">1.12+</span></label>
@@ -1398,18 +1422,6 @@
 		        </div>
 		        <div class="hint" style="margin-top:6px"><code>store_warp_config: true</code> добавляется в experimental автоматически</div>
 		    </div>
-
-		    <div class="sep" style="margin-top:10px"></div>
-
-		    <div class="field">
-		        <label>AmneziaWG из ссылок <span class="badge" style="background:rgba(63,185,80,0.12);color:var(--accent2)">auto</span></label>
-		        <div class="hint">Ссылки <code>awg://</code> парсятся автоматически. Параметры <code>Jc / Jmin / Jmax / S1 / S2 / H1-H4 / Itime</code> извлекаются из URL и добавляются в блок <code>amnezia{}</code> WireGuard endpoint.</div>
-		    </div>
-		    <div class="sep"></div>
-		    <div class="field">
-		        <label>XHTTP транспорт <span class="badge" style="background:rgba(88,166,255,0.12);color:var(--accent)">auto</span></label>
-		        <div class="hint">Поддерживается для VLESS / VMess / Trojan. Режимы: <code>stream-up</code> · <code>stream-one</code> · <code>packet-up</code>. xmux и x_padding настраиваются через ✏️ редактор профиля.</div>
-		    </div>
 		</div>
 
     <!-- URL TEST CARD -->
@@ -1501,7 +1513,6 @@
 					    <option value="juicity">juicity</option>
 					    <option value="anytls">anytls</option>
 					    <option value="wireguard">wireguard</option>
-				    <option value="wireguard-awg">wireguard (AmneziaWG)</option>
 					    <option value="socks">socks4/5</option>
 					    <option value="http">http/https</option>
 					    <option value="ssh">ssh</option>
@@ -1614,10 +1625,9 @@
 	                            <div><label style="font-size:0.68rem">H1</label><input type="text" id="editAmneziaH1" value="1" style="padding:5px 8px"></div>
 	                            <div><label style="font-size:0.68rem">H2</label><input type="text" id="editAmneziaH2" value="2" style="padding:5px 8px"></div>
 	                        </div>
-	                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+	                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">
 	                            <div><label style="font-size:0.68rem">H3</label><input type="text" id="editAmneziaH3" value="3" style="padding:5px 8px"></div>
 	                            <div><label style="font-size:0.68rem">H4</label><input type="text" id="editAmneziaH4" value="4" style="padding:5px 8px"></div>
-	                            <div><label style="font-size:0.68rem">Itime</label><input type="text" id="editAmneziaItime" value="50" style="padding:5px 8px"></div>
 	                            <div><label style="font-size:0.68rem">MTU</label><input type="text" id="editAmneziaWgMtu" value="1408" style="padding:5px 8px"></div>
 	                        </div>
 	                    </div>
@@ -1905,6 +1915,23 @@ async function loadProfiles() {
             showError('Ошибка CORS или доступа. Вставьте Base64 напрямую.');
             return;
         }
+    } else if (input.trim().startsWith('{') || input.trim().startsWith('[')) {
+        // JSON конфиг вставлен в textarea — извлекаем outbounds + endpoints
+        fetchSt.textContent = '⏳ Разбор JSON конфига...';
+        try {
+            const outbounds = extractOutboundsFromConfig(input);
+            if (outbounds.length > 0) {
+                const parsed = deduplicateAndTag(outbounds);
+                allParsedProfiles = parsed;
+                resetChains();
+                setLoadIdle(loadBtn, fetchSt, `✓ Из JSON: ${parsed.length} профилей`);
+                renderProfilePanel();
+                return;
+            }
+        } catch(e) { console.error('JSON parse error', e); }
+        setLoadIdle(loadBtn, fetchSt, '✗ JSON не распознан');
+        showError('JSON не распознан или нет outbounds/endpoints');
+        return;
     } else if (!input.includes('://') && input.length > 50) {
         fetchSt.textContent = '⏳ Декодирование base64...';
         const result = decodeSubscription(input);
@@ -2403,12 +2430,17 @@ function renderProfilePanel() {
             ? `<span class="chain-badge" style="color:${getChainColor(chainInfo.chainIdx)};border-color:${getChainColor(chainInfo.chainIdx)};background:${getChainColorHex(chainInfo.chainIdx)}22">C${chainInfo.chainIdx+1}·#${chainInfo.pos+1}</span>`
             : '';
 
+        const mfMode = p._muxFrag ? p._muxFrag.mode : 'global';
+        const mfBadgeClass = mfMode === 'custom' ? 'mf-custom' : mfMode === 'off' ? 'mf-off' : 'mf-global';
+        const mfBadgeTitle = mfMode === 'custom' ? 'Своя настройка' : mfMode === 'off' ? 'Отключено' : 'Глобальный режим';
+        const mfBadgeIcon = mfMode === 'custom' ? '⚡' : mfMode === 'off' ? '✗' : '⚡';
         item.innerHTML = `
             <div class="profile-check">${p.enabled ? '✓' : ''}</div>
             <span class="profile-type">${ob.type || '?'}</span>
             <span class="profile-tag">${escHtml(ob.tag || '(без имени)')}</span>
             ${badgeHtml}
             ${ob.server ? `<button class="ping-btn" data-server="${escHtml(ob.server)}" data-port="${ob.server_port||443}" title="Пинг ${escHtml(ob.server)}">${p._pingMs !== undefined ? (p._pingMs === null ? 'timeout' : p._pingMs+'ms') : 'ping'}</button>` : ''}
+            <button class="muxfrag-badge ${mfBadgeClass}" title="${mfBadgeTitle}: Fragment/Mux/Brutal">${mfBadgeIcon}</button>
             <button class="edit-btn" title="Редактировать">✏️</button>
             <button class="chain-btn${chainInfo ? ' active' : ''}" title="Добавить в цепочку" style="${chainInfo ? 'border-color:'+getChainColor(chainInfo.chainIdx)+';color:'+getChainColor(chainInfo.chainIdx) : ''}">⛓</button>
         `;
@@ -2430,6 +2462,11 @@ function renderProfilePanel() {
                 pingServer(ob.server, ob.server_port || 443, e.target);
             });
         }
+
+        item.querySelector('.muxfrag-badge').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openMuxFragModal(i);
+        });
 
         item.querySelector('.chain-btn').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2746,11 +2783,11 @@ function generateFromProfiles() {
         const freeTags   = proxyTags.filter(t => !allChainedTags.has(t));
         const selectorTags = [...new Set([...chainExits, ...soloTags, ...freeTags, 'direct'])];
 
-        generateConfigFromParsed(outboundsList, selectorTags);
+        generateConfigFromParsed(outboundsList, selectorTags, buildMuxFragMap());
     } else {
         // Нет цепочек — все профили в selector напрямую
         const selectorTags = [...proxyTags, 'direct'];
-        generateConfigFromParsed(outboundsList, selectorTags);
+        generateConfigFromParsed(outboundsList, selectorTags, buildMuxFragMap());
     }
 }
 
@@ -3573,21 +3610,43 @@ function outboundToSN(ob) {
 }
 
 // ─── JSON CONFIG DECODER ─────────────────────────────────────────────
-// Извлекает outbound'ы из полного конфига sing-box или из списка outbound'ов
+// Извлекает outbound'ы (и endpoints) из полного конфига sing-box или из списка outbound'ов
 function extractOutboundsFromConfig(jsonText) {
     const obj = JSON.parse(jsonText);
     // Полный конфиг sing-box
     if (obj.outbounds && Array.isArray(obj.outbounds)) {
-        return obj.outbounds.filter(o =>
+        const result = obj.outbounds.filter(o =>
             o.type && !['direct','block','dns','selector','urltest'].includes(o.type)
         );
+        // Также извлекаем endpoints (WireGuard/WARP endpoint-format)
+        if (obj.endpoints && Array.isArray(obj.endpoints)) {
+            obj.endpoints.forEach(ep => {
+                // Нормализуем endpoint-формат в outbound-формат для отображения
+                if (!ep.type) return;
+                const normalized = { ...ep, _isEndpoint: true };
+                // endpoint использует address/port вместо server/server_port
+                if (ep.peers && Array.isArray(ep.peers) && ep.peers.length > 0) {
+                    const firstPeer = ep.peers[0];
+                    if (firstPeer.address && !normalized.server) {
+                        normalized.server = firstPeer.address;
+                        normalized.server_port = firstPeer.port;
+                    }
+                }
+                result.push(normalized);
+            });
+        }
+        return result;
     }
     // Массив outbound'ов напрямую
     if (Array.isArray(obj)) {
-        return obj.filter(o => o.type && o.server);
+        return obj.filter(o => o.type && (o.server || o.peers));
     }
     // Один outbound
-    if (obj.type && obj.server) return [obj];
+    if (obj.type && (obj.server || obj.peers)) return [obj];
+    // Может быть просто endpoints массив
+    if (obj.endpoints && Array.isArray(obj.endpoints)) {
+        return obj.endpoints.map(ep => ({ ...ep, _isEndpoint: true }));
+    }
     return [];
 }
 
@@ -3648,7 +3707,7 @@ function importFromJson() {
     if (!text) { status.textContent = '⚠ Введите JSON'; return; }
     try {
         const outbounds = extractOutboundsFromConfig(text);
-        if (outbounds.length === 0) { status.textContent = '⚠ Outbound-профили не найдены'; return; }
+        if (outbounds.length === 0) { status.textContent = '⚠ Outbound/endpoint профили не найдены'; return; }
         const profiles = outbounds.map(o => ({ outbound: o, enabled: true }));
         status.textContent = `✓ Найдено ${profiles.length} профилей`;
         const listEl = document.getElementById('shareList');
@@ -3849,7 +3908,7 @@ function generateConfig(links) {
     generateConfigFromParsed(outboundsList, [...proxyTags, "direct"]);
 }
 
-function generateConfigFromParsed(outboundsList, proxyTags) {
+function generateConfigFromParsed(outboundsList, proxyTags, muxFragMap) {
     const rawDomains = document.getElementById('bypassDomains').value.trim();
     const bypassDomains = rawDomains ? rawDomains.split(/[\n,]+/).map(d => d.trim()).filter(Boolean) : [];
     const rawProxyDomains = document.getElementById('proxyDomains').value.trim();
@@ -4149,65 +4208,64 @@ function generateConfigFromParsed(outboundsList, proxyTags) {
         config.route.rule_set = cleanRuleSets;
     }
 
-    // --- Fragment ---
-	const fragmentEnabled = document.getElementById('fragmentEnabled').checked;
-	if (fragmentEnabled) {
-	    const fragmentTLS = document.getElementById('fragmentTLS').checked;
-	    const recordFragment = document.getElementById('recordFragment').checked;
-	    const fallbackDelay = document.getElementById('fragmentFallbackDelay').value || '500ms';
-	    
-	    config.outbounds.forEach(o => {
-	        if (o.type !== 'direct' && o.type !== 'block' && o.type !== 'selector') {
-	            if (!o.tls) o.tls = { enabled: true };
-	            o.tls.fragment = fragmentTLS;
-	            o.tls.record_fragment = recordFragment;
-	            if (fragmentTLS) {
-	                o.tls.fragment_fallback_delay = fallbackDelay;
-	            }
+	// --- Считываем глобальные настройки Fragment/Mux/Brutal ---
+	const _gFragEnabled   = document.getElementById('fragmentEnabled').checked;
+	const _gFragTLS       = document.getElementById('fragmentTLS').checked;
+	const _gRecordFrag    = document.getElementById('recordFragment').checked;
+	const _gFragDelay     = document.getElementById('fragmentFallbackDelay').value || '500ms';
+	const _gPadding       = document.getElementById('paddingEnabled').checked;
+	const _gBrutal        = document.getElementById('brutalEnabled').checked;
+	const _gBrutalUp      = parseInt(document.getElementById('brutalUp').value) || 100;
+	const _gBrutalDown    = parseInt(document.getElementById('brutalDown').value) || 100;
+	const _gMux           = document.getElementById('muxEnabled').checked;
+	const _gMuxProtoEl    = document.getElementById('muxProtocol').querySelector('.seg-btn.active');
+	const _gMuxProto      = _gMuxProtoEl ? _gMuxProtoEl.dataset.v : 'smux';
+	const _gMuxMaxConn    = parseInt(document.getElementById('muxMaxConnections').value) || 4;
+	const _gMuxMinStreams  = parseInt(document.getElementById('muxMinStreams').value) || 4;
+	const _gMuxMaxStreams  = parseInt(document.getElementById('muxMaxStreams').value) || 0;
+
+	const globalMfSettings = {
+	    fragment: _gFragEnabled, recordFragment: _gRecordFrag, fragmentTLS: _gFragTLS, fallbackDelay: _gFragDelay,
+	    padding: _gPadding, brutal: _gBrutal, brutalUp: _gBrutalUp, brutalDown: _gBrutalDown,
+	    mux: _gMux, muxProtocol: _gMuxProto, muxMaxConn: _gMuxMaxConn, muxMinStreams: _gMuxMinStreams, muxMaxStreams: _gMuxMaxStreams
+	};
+
+	// --- Применяем Fragment / Mux / Brutal / Padding per-profile ---
+	const SKIP_TYPES = new Set(['direct','block','selector','urltest','wireguard','warp']);
+	config.outbounds.forEach(o => {
+	    if (SKIP_TYPES.has(o.type)) return;
+	    let s = null;
+	    if (muxFragMap && muxFragMap[o.tag]) {
+	        const pfMode = muxFragMap[o.tag].mode;
+	        if (pfMode === 'off') return;
+	        if (pfMode === 'custom') s = muxFragMap[o.tag];
+	    }
+	    if (!s) s = globalMfSettings;
+
+	    if (s.fragment) {
+	        if (!o.tls) o.tls = { enabled: true };
+	        o.tls.record_fragment = s.recordFragment;
+	        o.tls.fragment = s.fragmentTLS;
+	        if (s.fragmentTLS) o.tls.fragment_fallback_delay = s.fallbackDelay;
+	    }
+
+	    if ((s.mux || s.padding || s.brutal) && o.transport?.type !== 'xhttp') {
+	        const mux = {
+	            enabled: s.mux,
+	            protocol: s.muxProtocol,
+	            padding: s.padding,
+	            brutal: s.brutal ? { enabled: true, up_mbps: s.brutalUp, down_mbps: s.brutalDown } : {}
+	        };
+	        if (s.muxMaxStreams > 0) {
+	            mux.max_streams = s.muxMaxStreams;
+	        } else {
+	            mux.max_connections = s.muxMaxConn;
+	            mux.min_streams = s.muxMinStreams;
 	        }
-	    });
-	}
-	
-	// --- Multiplex + Шум ---
-	const muxEnabled = document.getElementById('muxEnabled').checked;
-	const paddingEnabled = document.getElementById('paddingEnabled').checked;
-	const brutalEnabled = document.getElementById('brutalEnabled').checked;
-	
-	if (muxEnabled || paddingEnabled || brutalEnabled) {
-	    const muxProtocolEl = document.getElementById('muxProtocol').querySelector('.seg-btn.active');
-	    const muxProtocol = muxProtocolEl ? muxProtocolEl.dataset.v : 'smux';
-	    const muxMaxConn = parseInt(document.getElementById('muxMaxConnections').value) || 4;
-	    const muxMinStreams = parseInt(document.getElementById('muxMinStreams').value) || 4;
-	    const muxMaxStreams = parseInt(document.getElementById('muxMaxStreams').value) || 0;
-	    const brutalUp = parseInt(document.getElementById('brutalUp').value) || 100;
-	    const brutalDown = parseInt(document.getElementById('brutalDown').value) || 100;
-	    
-	    config.outbounds.forEach(o => {
-	        if (o.type !== 'direct' && o.type !== 'block' && o.type !== 'selector') {
-	            // max_streams конфликтует с max_connections и min_streams (документация sing-box)
-	            const mux = {
-	                enabled: muxEnabled,
-	                protocol: muxProtocol,
-	                padding: paddingEnabled,
-	                brutal: brutalEnabled ? {
-	                    enabled: true,
-	                    up_mbps: brutalUp,
-	                    down_mbps: brutalDown
-	                } : {}
-	            };
-	            if (muxMaxStreams > 0) {
-	                // max_streams — режим без max_connections/min_streams
-	                mux.max_streams = muxMaxStreams;
-	            } else {
-	                // режим по умолчанию: max_connections + min_streams
-	                mux.max_connections = muxMaxConn;
-	                mux.min_streams = muxMinStreams;
-	            }
-	            o.multiplex = mux;
-	        }
-	    });
-	}
-	
+	        o.multiplex = mux;
+	    }
+	});
+
 	renderOutput(config);
 }
 	
@@ -4408,7 +4466,7 @@ function openEditModal(index) {
         document.getElementById('editAmneziaH2').value    = ob.amnezia.h2   ?? 2;
         document.getElementById('editAmneziaH3').value    = ob.amnezia.h3   ?? 3;
         document.getElementById('editAmneziaH4').value    = ob.amnezia.h4   ?? 4;
-        document.getElementById('editAmneziaItime').value = ob.amnezia.itime ?? 50;
+        // Itime removed (sing-box UAPI error -22, field not implemented)
         document.getElementById('editAmneziaWgMtu').value = ob.mtu ?? 1408;
     } else if (ob.type === 'wireguard') {
         document.getElementById('editAmneziaEnabled').checked = false;
@@ -4466,10 +4524,6 @@ function updateTransportFields(trType) {
 }
 
 // Слушатель изменения транспорта
-document.getElementById('editTransport')?.addEventListener('change', (e) => {
-    updateTransportFields(e.target.value);
-});
-
 function closeEditModal() {
     document.getElementById('editModal').classList.remove('open');
     currentEditingIndex = null;
@@ -4672,8 +4726,7 @@ function saveProfileEdit() {
         ob.amnezia.h2 = parseInt(document.getElementById('editAmneziaH2').value) || 2;
         ob.amnezia.h3 = parseInt(document.getElementById('editAmneziaH3').value) || 3;
         ob.amnezia.h4 = parseInt(document.getElementById('editAmneziaH4').value) || 4;
-        const itime = parseInt(document.getElementById('editAmneziaItime').value) || 0;
-        if (itime) ob.amnezia.itime = itime;
+        // itime not saved (sing-box UAPI doesn't implement it)
         const mtu = parseInt(document.getElementById('editAmneziaWgMtu').value) || 1408;
         ob.mtu = mtu;
     } else if (newType === 'wireguard') {
@@ -4924,6 +4977,175 @@ function getRuleSetsFromUI() {
     return rules;
 }
 
+
+// ─── PER-PROFILE MUXFRAG ─────────────────────────────────────────────
+let _mfCurrentIdx = null;
+
+function buildMuxFragMap() {
+    const map = {};
+    allParsedProfiles.forEach(p => {
+        if (p._muxFrag && p._muxFrag.mode !== 'global') {
+            map[p.outbound.tag] = p._muxFrag;
+        }
+    });
+    return map;
+}
+
+function openMuxFragModal(idx) {
+    _mfCurrentIdx = idx;
+    const p = allParsedProfiles[idx];
+    document.getElementById('mfModalProfileName').textContent =
+        (p.outbound.type || '?') + ' · ' + (p.outbound.tag || '(без имени)');
+
+    const mf = p._muxFrag || { mode: 'global' };
+    setMfMode(mf.mode || 'global', true);
+
+    if (mf.mode === 'custom') {
+        document.getElementById('pmfFragEnabled').checked  = !!mf.fragment;
+        document.getElementById('pmfRecordFragment').checked = mf.recordFragment !== false;
+        document.getElementById('pmfFragmentTLS').checked  = !!mf.fragmentTLS;
+        document.getElementById('pmfFragDelay').value      = mf.fallbackDelay || '500ms';
+        document.getElementById('pmfPadding').checked      = !!mf.padding;
+        document.getElementById('pmfBrutal').checked       = !!mf.brutal;
+        document.getElementById('pmfBrutalUp').value       = mf.brutalUp || 100;
+        document.getElementById('pmfBrutalDown').value     = mf.brutalDown || 100;
+        document.getElementById('pmfMux').checked          = !!mf.mux;
+        document.getElementById('pmfMuxMaxConn').value     = mf.muxMaxConn || 4;
+        document.getElementById('pmfMuxMinStreams').value  = mf.muxMinStreams || 4;
+        document.getElementById('pmfMuxMaxStreams').value  = mf.muxMaxStreams || 0;
+        const proto = mf.muxProtocol || 'smux';
+        document.querySelectorAll('#pmfMuxProtocol .seg-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.v === proto);
+        });
+        // Trigger visibility
+        document.getElementById('pmfFragOpts').style.display = mf.fragment ? 'block' : 'none';
+        document.getElementById('pmfFragDelayRow').style.display = mf.fragmentTLS ? 'block' : 'none';
+        document.getElementById('pmfBrutalOpts').style.display = mf.brutal ? 'block' : 'none';
+        document.getElementById('pmfMuxOpts').style.display = mf.mux ? 'block' : 'none';
+    }
+
+    const modal = document.getElementById('muxFragModal');
+    modal.classList.add('open');
+}
+
+function closeMuxFragModal() {
+    document.getElementById('muxFragModal').classList.remove('open');
+    _mfCurrentIdx = null;
+}
+
+function setMfMode(mode, skipSave) {
+    ['global','custom','off'].forEach(m => {
+        document.getElementById('mfMode' + m.charAt(0).toUpperCase() + m.slice(1))
+            .classList.toggle('active', m === mode);
+    });
+    document.getElementById('mfCustomForm').style.display = mode === 'custom' ? 'block' : 'none';
+    const desc = {
+        global: 'Использует глобальные настройки из раздела Fragment·Шум·Mux',
+        custom: 'Индивидуальные настройки для этого профиля',
+        off:    'Фрагментация, Mux и Brutal отключены для этого профиля'
+    };
+    document.getElementById('mfModeDesc').textContent = desc[mode] || '';
+    if (!skipSave) document.getElementById('muxFragModal')._pendingMode = mode;
+    document.getElementById('muxFragModal').dataset.mode = mode;
+}
+
+function saveMuxFragModal() {
+    if (_mfCurrentIdx === null) return;
+    const mode = document.getElementById('muxFragModal').dataset.mode || 'global';
+    let mf = { mode };
+
+    if (mode === 'custom') {
+        const fragEnabled = document.getElementById('pmfFragEnabled').checked;
+        const muxEnabled  = document.getElementById('pmfMux').checked;
+        const brutalEnabled = document.getElementById('pmfBrutal').checked;
+        const protoEl = document.getElementById('pmfMuxProtocol').querySelector('.seg-btn.active');
+        mf = {
+            mode: 'custom',
+            fragment:       fragEnabled,
+            recordFragment: document.getElementById('pmfRecordFragment').checked,
+            fragmentTLS:    document.getElementById('pmfFragmentTLS').checked,
+            fallbackDelay:  document.getElementById('pmfFragDelay').value || '500ms',
+            padding:        document.getElementById('pmfPadding').checked,
+            brutal:         brutalEnabled,
+            brutalUp:       parseInt(document.getElementById('pmfBrutalUp').value) || 100,
+            brutalDown:     parseInt(document.getElementById('pmfBrutalDown').value) || 100,
+            mux:            muxEnabled,
+            muxProtocol:    protoEl ? protoEl.dataset.v : 'smux',
+            muxMaxConn:     parseInt(document.getElementById('pmfMuxMaxConn').value) || 4,
+            muxMinStreams:  parseInt(document.getElementById('pmfMuxMinStreams').value) || 4,
+            muxMaxStreams:  parseInt(document.getElementById('pmfMuxMaxStreams').value) || 0,
+        };
+    }
+
+    allParsedProfiles[_mfCurrentIdx]._muxFrag = mf;
+    closeMuxFragModal();
+    renderProfilePanel();
+}
+
+function setPmfMuxProtocol(btn) {
+    document.getElementById('pmfMuxProtocol').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function bulkMuxFrag(target) {
+    // Считываем текущие глобальные настройки как custom-пресет
+    const fragEnabled  = document.getElementById('fragmentEnabled').checked;
+    const muxEnabled   = document.getElementById('muxEnabled').checked;
+    const brutalEnabled = document.getElementById('brutalEnabled').checked;
+    const paddingEnabled = document.getElementById('paddingEnabled').checked;
+    const protoEl = document.getElementById('muxProtocol').querySelector('.seg-btn.active');
+
+    const customPreset = {
+        mode: 'custom',
+        fragment:       fragEnabled,
+        recordFragment: document.getElementById('recordFragment').checked,
+        fragmentTLS:    document.getElementById('fragmentTLS').checked,
+        fallbackDelay:  document.getElementById('fragmentFallbackDelay').value || '500ms',
+        padding:        paddingEnabled,
+        brutal:         brutalEnabled,
+        brutalUp:       parseInt(document.getElementById('brutalUp').value) || 100,
+        brutalDown:     parseInt(document.getElementById('brutalDown').value) || 100,
+        mux:            muxEnabled,
+        muxProtocol:    protoEl ? protoEl.dataset.v : 'smux',
+        muxMaxConn:     parseInt(document.getElementById('muxMaxConnections').value) || 4,
+        muxMinStreams:  parseInt(document.getElementById('muxMinStreams').value) || 4,
+        muxMaxStreams:  parseInt(document.getElementById('muxMaxStreams').value) || 0,
+    };
+
+    allParsedProfiles.forEach(p => {
+        if (target === 'reset') {
+            p._muxFrag = { mode: 'global' };
+        } else if (target === 'none') {
+            p._muxFrag = { mode: 'off' };
+        } else if (target === 'all') {
+            p._muxFrag = { ...customPreset };
+        } else if (target === 'enabled') {
+            p._muxFrag = p.enabled ? { ...customPreset } : { mode: 'off' };
+        }
+    });
+    renderProfilePanel();
+
+    const labels = { all: 'всем', enabled: 'активным', none: 'никому', reset: 'сброшено' };
+    const st = document.getElementById('mfBulkStatus');
+    if (st) {
+        const icons = { all: '🌍', enabled: '✓', none: '✗', reset: '↺' };
+        st.textContent = (icons[target] || '') + ' Применено: ' + (labels[target] || target);
+        setTimeout(() => { st.textContent = ''; }, 2500);
+    }
+}
+
+// Inline toggles в per-profile modal
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'pmfFragEnabled')
+        document.getElementById('pmfFragOpts').style.display = e.target.checked ? 'block' : 'none';
+    if (e.target.id === 'pmfFragmentTLS')
+        document.getElementById('pmfFragDelayRow').style.display = e.target.checked ? 'block' : 'none';
+    if (e.target.id === 'pmfBrutal')
+        document.getElementById('pmfBrutalOpts').style.display = e.target.checked ? 'block' : 'none';
+    if (e.target.id === 'pmfMux')
+        document.getElementById('pmfMuxOpts').style.display = e.target.checked ? 'block' : 'none';
+});
+
 // Привязка событий для Fragment, Mux, Brutal
 document.getElementById('muxEnabled').addEventListener('change', function() {
     document.getElementById('muxOpts').style.display = this.checked ? 'block' : 'none';
@@ -4944,5 +5166,105 @@ function setMuxProtocol(btn) {
 }
 
 </script>
+
+	<!-- PER-PROFILE MUXFRAG MODAL -->
+	<div class="modal-overlay" id="muxFragModal" onclick="if(event.target===this)closeMuxFragModal()">
+	    <div class="modal" style="max-width:420px;overflow-y:auto;max-height:90vh">
+	        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+	            <div>
+	                <div style="font-weight:700;font-size:14px">⚡ Fragment · Mux · Brutal</div>
+	                <div id="mfModalProfileName" style="font-size:11px;color:var(--text-dim);margin-top:2px"></div>
+	            </div>
+	            <button onclick="closeMuxFragModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-dim)">✕</button>
+	        </div>
+	        
+	        <!-- MODE SELECTOR -->
+	        <div style="display:flex;gap:8px;margin-bottom:14px">
+	            <button class="mf-mode-btn active" id="mfModeGlobal" onclick="setMfMode('global')">🌍 Глобальный</button>
+	            <button class="mf-mode-btn" id="mfModeCustom" onclick="setMfMode('custom')">🔧 Своя настройка</button>
+	            <button class="mf-mode-btn" id="mfModeOff" onclick="setMfMode('off')">✗ Отключить</button>
+	        </div>
+	        <div id="mfModeDesc" style="font-size:11px;color:var(--text-dim);margin-bottom:12px"></div>
+	        
+	        <!-- CUSTOM FORM (hidden unless mode=custom) -->
+	        <div id="mfCustomForm" style="display:none">
+	            <!-- FRAGMENT -->
+	            <div style="font-size:12px;font-weight:600;color:var(--accent4);margin-bottom:8px">Фрагментация TLS</div>
+	            <div class="toggle-row" style="margin-bottom:6px">
+	                <label class="toggle"><input type="checkbox" id="pmfFragEnabled"><span class="toggle-slider"></span></label>
+	                <span class="toggle-label" style="font-size:12px">Включить фрагментацию</span>
+	            </div>
+	            <div id="pmfFragOpts" style="display:none;padding-left:4px">
+	                <div class="toggle-row" style="margin-bottom:4px">
+	                    <label class="toggle"><input type="checkbox" id="pmfRecordFragment" checked><span class="toggle-slider"></span></label>
+	                    <span class="toggle-label" style="font-size:11px">Record Fragment</span>
+	                </div>
+	                <div class="toggle-row" style="margin-bottom:4px">
+	                    <label class="toggle"><input type="checkbox" id="pmfFragmentTLS"><span class="toggle-slider"></span></label>
+	                    <span class="toggle-label" style="font-size:11px">Fragment ClientHello</span>
+	                </div>
+	                <div id="pmfFragDelayRow" style="display:none;margin-bottom:4px">
+	                    <input type="text" id="pmfFragDelay" value="500ms" placeholder="500ms" style="width:100%;padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+	                </div>
+	            </div>
+	            <div style="height:1px;background:var(--border);margin:10px 0"></div>
+	            <!-- PADDING + BRUTAL -->
+	            <div style="font-size:12px;font-weight:600;color:var(--accent4);margin-bottom:8px">Шум и маскировка</div>
+	            <div class="toggle-row" style="margin-bottom:6px">
+	                <label class="toggle"><input type="checkbox" id="pmfPadding"><span class="toggle-slider"></span></label>
+	                <span class="toggle-label" style="font-size:12px">Padding</span>
+	            </div>
+	            <div class="toggle-row" style="margin-bottom:6px">
+	                <label class="toggle"><input type="checkbox" id="pmfBrutal"><span class="toggle-slider"></span></label>
+	                <span class="toggle-label" style="font-size:12px">TCP Brutal</span>
+	            </div>
+	            <div id="pmfBrutalOpts" style="display:none;padding-left:4px">
+	                <div style="display:flex;gap:8px">
+	                    <div style="flex:1">
+	                        <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">Upload (Mbps)</div>
+	                        <input type="number" id="pmfBrutalUp" value="100" min="1" style="width:100%;padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+	                    </div>
+	                    <div style="flex:1">
+	                        <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">Download (Mbps)</div>
+	                        <input type="number" id="pmfBrutalDown" value="100" min="1" style="width:100%;padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+	                    </div>
+	                </div>
+	            </div>
+	            <div style="height:1px;background:var(--border);margin:10px 0"></div>
+	            <!-- MUX -->
+	            <div style="font-size:12px;font-weight:600;color:var(--accent4);margin-bottom:8px">Multiplex (Mux)</div>
+	            <div class="toggle-row" style="margin-bottom:6px">
+	                <label class="toggle"><input type="checkbox" id="pmfMux"><span class="toggle-slider"></span></label>
+	                <span class="toggle-label" style="font-size:12px">Включить Mux</span>
+	            </div>
+	            <div id="pmfMuxOpts" style="display:none;padding-left:4px">
+	                <div style="display:flex;gap:6px;margin-bottom:8px" id="pmfMuxProtocol">
+	                    <button class="seg-btn active" data-v="smux" onclick="setPmfMuxProtocol(this)">smux</button>
+	                    <button class="seg-btn" data-v="yamux" onclick="setPmfMuxProtocol(this)">yamux</button>
+	                    <button class="seg-btn" data-v="h2mux" onclick="setPmfMuxProtocol(this)">h2mux</button>
+	                </div>
+	                <div style="display:flex;gap:6px">
+	                    <div style="flex:1">
+	                        <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">Макс. соединений</div>
+	                        <input type="number" id="pmfMuxMaxConn" value="4" min="1" style="width:100%;padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+	                    </div>
+	                    <div style="flex:1">
+	                        <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">Мин. потоков</div>
+	                        <input type="number" id="pmfMuxMinStreams" value="4" min="1" style="width:100%;padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+	                    </div>
+	                    <div style="flex:1">
+	                        <div style="font-size:11px;color:var(--text-dim);margin-bottom:3px">Макс. потоков</div>
+	                        <input type="number" id="pmfMuxMaxStreams" value="0" min="0" style="width:100%;padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+	        
+	        <div style="display:flex;gap:8px;margin-top:16px">
+	            <button class="btn btn-primary" onclick="saveMuxFragModal()" style="flex:1">Сохранить</button>
+	            <button class="btn btn-secondary" onclick="closeMuxFragModal()">Отмена</button>
+	        </div>
+	    </div>
+	</div>
 </body>
 </html>
